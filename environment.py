@@ -19,18 +19,18 @@ BULLETPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_descr
 class QuadrupedRobotEnv(gym.Env):
     def __init__(self):
         # self.physics_client = p.connect(p.DIRECT)
+        self.physics_client = p.connect(p.GUI)
         self._motor_offset = np.array([0] * 12)
         # self._motor_offset = np.array([0, -0.8, -1.5, 0, 0.8, -1.5, 0, -0.8, -1.5, 0, 0.8, -1.5])
 
-        self._motor_direction = np.array([1, 1, -1,
-                                          1, 1, -1,
-                                          1, 1, -1,
-                                          1, 1, -1])
+        self._motor_direction = np.array([1, 1, 1,
+                                          1, 1, 1,
+                                          1, 1, 1,
+                                          1, 1, 1])
         # self._motor_direction = np.array([-1, 1, -1,
         #                                   -1, 1, -1,
         #                                   -1, 1, -1,
         #                                   -1, 1, -1])
-        self.physics_client = p.connect(p.GUI)
         # Loading the URDF file with meshes
         p.setAdditionalSearchPath(SEARCHPATH)  # Path to the meshes folder
         self.robot_id = p.loadURDF(URDFPATH, [0, 0, 0.58])
@@ -91,7 +91,8 @@ class QuadrupedRobotEnv(gym.Env):
         self.twist_dir = 0
         self.angle = 0
 
-        self.valid_indices = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]
+        self.valid_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        self.leg_valid = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]
         self.leg_indices = [0, 1, 2, 3]
         # print(p.getContactPoints(self.robot_id))
         # print(p.getLinkState(self.robot_id, 2))
@@ -144,9 +145,9 @@ class QuadrupedRobotEnv(gym.Env):
              3.14159, 100, 0.0, 100, 3.14159, 3.14159, 1, 1, 1, 1])
 
         self.observation_space = spaces.Box(low=self.obs_lower_limits, high=self.obs_upper_limits, shape=(30,), dtype=np.float32)
-        self.initial_action = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.present_state = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        self.present_vels = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.initial_action = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.present_state = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.present_vels = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
         self.tminus1_state = self.present_state
         self.tminus2_state = self.present_state
@@ -155,7 +156,7 @@ class QuadrupedRobotEnv(gym.Env):
         self.tminus2_vels = self.present_vels
 
         self.torques = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        self._foot_link_ids = [2, 6, 10, 14]
+        self._foot_link_ids = [3, 7, 11, 15]
         self.num_motors = 12
         self.num_legs = 4
         # self.initial_copy = [0, -1, -1, 0, 1, -1, 0, -1, -1, 0, 1, -1]
@@ -169,8 +170,8 @@ class QuadrupedRobotEnv(gym.Env):
         # self.epi_count = 0
         self.done = False
 
-        foot_clearance = 0.02
-        height = 0.32
+        foot_clearance = 0.01
+        height = 0.64
         self.desired_height = height - foot_clearance
         # self.data = 0.0
 
@@ -182,21 +183,23 @@ class QuadrupedRobotEnv(gym.Env):
         for joint_index, position in zip(joint_indices, initial_positions):
             p.resetJointState(robot_id, joint_index, position)
 
+        # print("set initial stance")
+
     def find_binary_foot_contact(self):
         binary_foot_contact = [0 for i in range(4)]
         contact_points = list(p.getContactPoints(self.robot_id))
         for i in range(len(contact_points)):
             point = contact_points[i]
-            if point[3] == 2:
+            if point[3] == 3:
                 binary_foot_contact[0] = 1
 
-            elif point[3] == 6:
+            elif point[3] == 7:
                 binary_foot_contact[1] = 1
 
-            elif point[3] == 10:
+            elif point[3] == 11:
                 binary_foot_contact[2] = 1
 
-            elif point[3] == 14:
+            elif point[3] == 15:
                 binary_foot_contact[3] = 1
 
         # print("binary foot contact:", binary_foot_contact)
@@ -204,6 +207,8 @@ class QuadrupedRobotEnv(gym.Env):
         return binary_foot_contact
 
     def step(self, action):
+        for v in self.valid_indices:
+            print(p.getJointInfo(self.robot_id, v))
         # Applying the action to the robot in the simulation
         # print("inside step")
         # print(p.getContactPoints(self.robot_id))
@@ -235,7 +240,10 @@ class QuadrupedRobotEnv(gym.Env):
         # print("leg_tars", leg_tars[3:6])
 
         leg0_tar = list(np.add(ftg_z0, np.array(leg_tars[:3])))
-        # print("leg 0 target", leg0_tar)
+        print("leg 0 target", leg0_tar)
+        # print("leg 0 target wrt base frame", self.link_position_in_base_frame(0))
+        print("base position", p.getBasePositionAndOrientation(self.robot_id)[0])
+        print("hip joint psoe", p.getLinkState(self.robot_id, 0)[0])
         leg1_tar = list(np.add(ftg_z1, np.array(leg_tars[3:6])))
         leg2_tar = list(np.add(ftg_z2, np.array(leg_tars[6:9])))
         leg3_tar = list(np.add(ftg_z3, np.array(leg_tars[9:])))
@@ -273,7 +281,7 @@ class QuadrupedRobotEnv(gym.Env):
 
         self.leg3_tar_t = list(np.add(np.array(self.leg3_tar_tminus1[:2] + [0.0]), np.array(leg3_tar)))
 
-        # print("tars", self.leg0_tar_t, self.leg1_tar_t, self.leg2_tar_t, self.leg3_tar_t)
+        print("tars", self.leg0_tar_t, self.leg1_tar_t, self.leg2_tar_t, self.leg3_tar_t)
 
         joint_ids_0, joint_angles_0 = (
             self.ComputeMotorAnglesFromFootLocalPosition(
@@ -311,7 +319,7 @@ class QuadrupedRobotEnv(gym.Env):
         print("dictionary", d)
 
         # print("action", action)
-        for joint_index in self.valid_indices:
+        for joint_index in self.leg_valid:
             # print(p.getJointInfo(self.robot_id, i))
 
             p.setJointMotorControl2(self.robot_id, joint_index, controlMode=p.POSITION_CONTROL,
@@ -401,9 +409,9 @@ class QuadrupedRobotEnv(gym.Env):
         states = self.get_obs()
         # obs = self.get_obs()
 
-        present = states[9:21]
+        present = states[9:25]
         # print("present ANGLES", present)
-        vels_present = states[21:33]
+        vels_present = states[25:39]
 
         self.present_state = present
         self.tminus1_state = self.present_state
@@ -427,11 +435,12 @@ class QuadrupedRobotEnv(gym.Env):
         self.freq_leg2 = self.base_freq
         self.freq_leg3 = self.base_freq
 
-        leg0_tar = list(self.link_position_in_base_frame(2))
-        leg1_tar = list(self.link_position_in_base_frame(6))
-        leg2_tar = list(self.link_position_in_base_frame(10))
-        leg3_tar = list(self.link_position_in_base_frame(14))
+        leg0_tar = list(self.link_position_in_base_frame(3))
+        leg1_tar = list(self.link_position_in_base_frame(7))
+        leg2_tar = list(self.link_position_in_base_frame(11))
+        leg3_tar = list(self.link_position_in_base_frame(15))
 
+        # print("leg0 pose in world frame", p.getLinkState(self.robot_id, 3)[0])
         # print("leg0, leg1, leg2, leg3", leg0_tar, leg1_tar, leg2_tar, leg3_tar)
 
         self.leg0_tar_t = leg0_tar
@@ -447,8 +456,8 @@ class QuadrupedRobotEnv(gym.Env):
         self.leg3_tar_tminus1 = leg3_tar
         self.leg3_tar_tminus2 = leg3_tar
 
-        # (base_pose, orien) = p.getBasePositionAndOrientation(self.robot_id)
-        # print("base_pose", base_pose)
+        (base_pose, orien) = p.getBasePositionAndOrientation(self.robot_id)
+        # print("base_orien", orien)
 
         # print("state", self.present_state)
 
@@ -510,16 +519,18 @@ class QuadrupedRobotEnv(gym.Env):
             # Projects to world space.
             world_link_pos, _ = p.multiplyTransforms(
                 base_position, base_orientation, link_position, _IDENTITY_ORIENTATION)
+
+            # print("world pose", world_link_pos)
         else:
             world_link_pos = link_position
 
         ik_solver = 0
         all_joint_angles = p.calculateInverseKinematics(
             self.robot_id, link_id, world_link_pos, solver=ik_solver)
-        # print(all_joint_angles)
-
+        # print("all_joint_angles", all_joint_angles)
+        # print("leg index", leg_id)
+        # print("len of all joint angles", len(all_joint_angles))
         # Extract the relevant joint angles.
-        # print("len joint_ids", len(joint_ids))
         if leg_id == 0:
             joint_angles = [all_joint_angles[i] for i in joint_ids]
         elif leg_id == 1:
@@ -528,6 +539,9 @@ class QuadrupedRobotEnv(gym.Env):
             joint_angles = [all_joint_angles[i-2] for i in joint_ids]
         else:
             joint_angles = [all_joint_angles[i-3] for i in joint_ids]
+
+        # joint_angles = [all_joint_angles[i] for i in joint_ids]
+        print("joiny angles", joint_angles)
 
         return joint_angles
 
@@ -669,7 +683,7 @@ class QuadrupedRobotEnv(gym.Env):
         return phases
 
     def get_foot_locations(self):
-        foot_indices = [2, 6, 10, 14]
+        foot_indices = [3, 7, 11, 15]
         locs = []
         for ind in foot_indices:
             loc = list(self.link_position_in_base_frame(ind))
@@ -711,7 +725,7 @@ class QuadrupedRobotEnv(gym.Env):
         contact_info = p.getContactPoints(self.robot_id)
         d = {}
         normals = []
-        valid_foot = [2, 6, 10, 14]
+        valid_foot = [3, 7, 11, 15]
         for f in valid_foot:
             d[f] = ()
 
@@ -728,7 +742,7 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_foot_pose(self):
         index_pos = {}
-        foot_indices = [2, 6, 10, 14]
+        foot_indices = [3, 7, 11, 15]
         contact_states = p.getContactPoints(self.robot_id)
         for c in foot_indices:
             # print(index_pos)
@@ -789,7 +803,7 @@ class QuadrupedRobotEnv(gym.Env):
         # print("contact info", contact_info)
         d = {}
         forces = []
-        valid_foot = [2, 6, 10, 14]
+        valid_foot = [3, 7, 11, 15]
         for f in valid_foot:
             d[f] = 0.0
 
@@ -806,16 +820,16 @@ class QuadrupedRobotEnv(gym.Env):
         contact_points = list(p.getContactPoints(self.robot_id))
         for i in range(len(contact_points)):
             point = contact_points[i]
-            if point[3] == 1:
+            if point[3] == 2:
                 binary_thigh_contact[0] = 1
 
-            elif point[3] == 5:
+            elif point[3] == 6:
                 binary_thigh_contact[1] = 1
 
-            elif point[3] == 9:
+            elif point[3] == 10:
                 binary_thigh_contact[2] = 1
 
-            elif point[3] == 13:
+            elif point[3] == 14:
                 binary_thigh_contact[3] = 1
 
         # print("binary foot contact:", binary_thigh_contact)
@@ -826,16 +840,16 @@ class QuadrupedRobotEnv(gym.Env):
         contact_points = list(p.getContactPoints(self.robot_id))
         for i in range(len(contact_points)):
             point = contact_points[i]
-            if point[3] == 0:
+            if point[3] == 1:
                 binary_shank_contact[0] = 1
 
-            elif point[3] == 4:
+            elif point[3] == 5:
                 binary_shank_contact[1] = 1
 
-            elif point[3] == 8:
+            elif point[3] == 9:
                 binary_shank_contact[2] = 1
 
-            elif point[3] == 12:
+            elif point[3] == 13:
                 binary_shank_contact[3] = 1
 
         # print("binary foot contact:", binary_thigh_contact)
@@ -881,9 +895,10 @@ class QuadrupedRobotEnv(gym.Env):
         inverse_translation, inverse_rotation = p.invertTransform(
             base_position, base_orientation)
 
+        print("link_id", link_id)
         link_state = p.getLinkState(self.robot_id, link_id)
         link_position = link_state[0]
-        # print("link state", link_state)
+        print("link state", link_position)
         link_local_position, _ = p.multiplyTransforms(
             inverse_translation, inverse_rotation, link_position, (0, 0, 0, 1))
 
