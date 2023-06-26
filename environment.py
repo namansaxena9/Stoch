@@ -185,7 +185,8 @@ class QuadrupedRobotEnv(gym.Env):
         # self.data = 0.0
 
     def step(self, action):
-
+        print("step")
+        # print("action", action)
         action = list(action)
         freq_offsets = action[:4]
         for i, f in enumerate(freq_offsets):
@@ -283,15 +284,15 @@ class QuadrupedRobotEnv(gym.Env):
         self.present_vels = obs[21:33]
 
         reward = self.reward_function()
-        #
-        # done = self._is_done()
+        done = self._is_done()
+        print("timesteps", self.timesteps)
 
-        # return obs, reward, done, {}
-        return obs
+        return obs, reward, done, {}
+
 
     def reset(self):
         # Reset the simulation and the robot's state
-        # print("inside reset")
+        print("reset")
         p.resetSimulation()
         # self.timesteps = 0
         self.done = False
@@ -326,9 +327,9 @@ class QuadrupedRobotEnv(gym.Env):
         p.changeDynamics(
             self.robot_id,
             -1,
-            lateralFriction=0.6,
-            spinningFriction=0.6,
-            rollingFriction=0.05,
+            lateralFriction=0.8,
+            spinningFriction=0.8,
+            rollingFriction=0.1,
             physicsClientId=0,
             restitution=0.15,
             contactStiffness=6500,
@@ -337,9 +338,9 @@ class QuadrupedRobotEnv(gym.Env):
         p.changeDynamics(
             self.terrain_body,
             -1,
-            lateralFriction=0.6,
-            spinningFriction=0.6,
-            rollingFriction=0.05,
+            lateralFriction=0.8,
+            spinningFriction=0.8,
+            rollingFriction=0.1,
             physicsClientId=0,
         )
 
@@ -401,11 +402,6 @@ class QuadrupedRobotEnv(gym.Env):
         self.leg2_tar_tminus2 = leg2_tar
         self.leg3_tar_tminus1 = leg3_tar
         self.leg3_tar_tminus2 = leg3_tar
-
-        (base_pose, orien) = p.getBasePositionAndOrientation(self.robot_id)
-        # print("base_orien", orien)
-
-        # print("state", self.present_state)
 
         self.timesteps = 0
 
@@ -487,7 +483,7 @@ class QuadrupedRobotEnv(gym.Env):
             joint_angles = [all_joint_angles[i-3] for i in joint_ids]
 
         # joint_angles = [all_joint_angles[i] for i in joint_ids]
-        print("joiny angles", joint_angles)
+        # print("joiny angles", joint_angles)
 
         return joint_angles
 
@@ -509,7 +505,7 @@ class QuadrupedRobotEnv(gym.Env):
         # Joint offset is necessary for Laikago.
         # print("angles",             np.asarray(joint_angles) -
         #     np.asarray(self._motor_offset)[joint_position_idxs])
-        print("joint ids", joint_position_idxs)
+        # print("joint ids", joint_position_idxs)
         if leg_id == 0:
             pose = [0, 1, 2]
         elif leg_id == 1:
@@ -556,7 +552,7 @@ class QuadrupedRobotEnv(gym.Env):
         ext_force = self.get_ext_force()
 
         observation = np.array(twist + lin_dir + base_angular_vel + base_linear_vel + joint_pose + joint_vels + foot_locs + ftg_phases + ftg_freq + base_freq + pose_history + vels_history + foot_tar_history + terrain_normal + terrain_height + foot_contact_forces + foot_contact_states + thigh_contact_states + shank_contact_states + ground_fric + ext_force)
-        print("len obs", len(observation))
+        # print("len obs", len(observation))
         return observation
 
     def FTG(self, phase):
@@ -613,7 +609,7 @@ class QuadrupedRobotEnv(gym.Env):
 
     def calculate_desired_direction_turning_direction(self, ):
         horizontal_twist_dirs = []
-        if self.counter % 500000 == 0 and self.counter !=0:
+        if self.counter % 2000000 == 0 and self.counter != 0:
             self.twist_dir = random.choice([-1, 0, 1])
             self.angle = random.uniform(-3.14, 3.14)
 
@@ -834,8 +830,8 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_ground_friction_coeff(self):
         fric_coeff = [0.6, 0.6, 0.6, 0.6]
-        if self.counter % 500000 == 0 and self.counter != 0:
-            fric_coeff = [random.uniform(0, 1) for i in range(4)]
+        if self.counter % 1000000 == 0 and self.counter != 0:
+            fric_coeff = [random.uniform(0.1, 1) for i in range(4)]
             p.changeDynamics(self.robot_id,
                              -1,
                              lateralFriction=fric_coeff[0],
@@ -872,96 +868,31 @@ class QuadrupedRobotEnv(gym.Env):
         inverse_translation, inverse_rotation = p.invertTransform(
             base_position, base_orientation)
 
-        print("link_id", link_id)
+        # print("link_id", link_id)
         link_state = p.getLinkState(self.robot_id, link_id)
         link_position = link_state[0]
-        print("link state", link_position)
+        # print("link state", link_position)
         link_local_position, _ = p.multiplyTransforms(
             inverse_translation, inverse_rotation, link_position, (0, 0, 0, 1))
 
         return np.array(link_local_position)
 
-    # def _calculate_reward(self, torques, joint_vels, base_vels, body_orien, body_pose, contact):
-    #     binary_foot = 0.2
-    #     binary_reward = 0.0
-    #     survival = 0.1
-    #     contact_reward = 0.0
-    #     lateral_reward = 0.0
-    #     a = 20
-    #     lateral = 2 * 1.5
-    #     b = 0.00001 * 40
-    #     d = 0.0001
-    #     z = 0.2
-    #     s = 0.001
-    #     # orien_reward = 0.0
-    #     # height_reward = 0.0
-    #
-    #     if sum(contact) > 2:
-    #         binary_reward += binary_foot
-    #
-    #     joint_vels = np.array(joint_vels)
-    #     # print("joint_vels", joint_vels)
-    #     torques = np.array(torques)
-    #     # print("torques", torques)
-    #     ener = np.multiply(joint_vels, torques)
-    #     # print("matrix", ener)
-    #     energy_reward = abs(sum(list(ener))) * (-1) * b
-    #     # print("energy_reward", energy_reward * b)
-    #     smoothness_reward = d * abs(np.sum(np.subtract(torques, self.torques))) * (-1)
-    #     print("smoothness", smoothness_reward)
-    #     self.torques = torques
-    #
-    #     # print(base_vels)
-    #     linear = base_vels[:3]
-    #     angular = base_vels[3:]
-    #
-    #     vx = linear[0]
-    #     vy = linear[1]
-    #     vz = linear[2]
-    #     wz = angular[2]
-    #
-    #     z_vel_reward = z * vz * vz * (-1)
-    #     # forward_reward = (a * abs(vx - self.vx_target) + math.pow(vy, 2) + math.pow(wz, 2)) * (-1)
-    #     lateral_reward += (math.pow(vy, 2) + math.pow(wz, 2)) * lateral * (-1)
-    #     forward_reward = a * min(vx, 0.45)
-    #     # forward_reward = (self.vx_target - abs(vx - self.vx_target) - abs(wz)) * a
-    #
-    #     link_indexes = [2, 5, 8, 11]
-    #     x_vels = []
-    #     for link in link_indexes:
-    #         link_states = p.getLinkState(self.robot_id, link)
-    #         linear_vels = link_states[-2]
-    #         lin_vx = linear_vels[0]
-    #         x_vels.append(lin_vx)
-    #     # print(x_vels)
-    #     # print(contact)
-    #     foot_slip = np.multiply(np.array(contact), x_vels)
-    #     slip_reward = (-1) * pow(abs(sum(list(foot_slip))), 2) * s
-    #     # print("slip", slip_reward)
-    #
-    #     contact_points = list(p.getContactPoints(self.robot_id))
-    #     valid = [2, 5, 8, 11]
-    #     for point in contact_points:
-    #         if point[3] not in valid:
-    #             contact_reward += (-0.1)
-    #
-    #     reward = energy_reward + forward_reward + smoothness_reward + survival + z_vel_reward + slip_reward + \
-    #              binary_reward + contact_reward + lateral_reward
-    #
-    #     # print("lateral = ", lateral_reward)
-    #
-    #     # print("energy, fwd, survival smooth reward, z_reward, slip, binary, contact, total rewards:", energy_reward,
-    #     #       forward_reward, survival, smoothness_reward, z_vel_reward, slip_reward, contact_reward, reward)
-    #
-    #     return reward
-
     def reward_function(self):
         global lin_vel_reward, ang_vel_reward
-        lin_vel_coeff = 0.05
-        ang_vel_coeff = 0.05
-        base_pen_coeff = 0.04
-        smooth_coeff = 0.025
-        ener_coeff = 0.0001
+        lin_vel_coeff = 1
+        ang_vel_coeff = 1
+        base_pen_coeff = 0.0001
+        smooth_coeff = 0.00001
+        ener_coeff = 0.000001
+
+        base_pen_limit = 0.4
+        smooth_lim = 0.025
+        ener_lim = 0.0004
+
+        if self.counter % 500000 == 0 and self.counter != 1:
+            base_pen_coeff = min(base_pen_coeff * 2, base_pen_limit)
+            smooth_coeff = min(smooth_coeff * 2, smooth_lim)
+            ener_coeff = min(ener_coeff * 2, ener_lim)
 
         torques = []
         for i in self.leg_valid:
@@ -993,6 +924,7 @@ class QuadrupedRobotEnv(gym.Env):
         elif wpr > self.desired_twisting_speed:
             ang_vel_reward = 1.0
 
+        # print("lin vel reward", lin_vel_reward * lin_vel_coeff)
         v0 = np.array(self.get_base_linear_vels()[:2]) - vpr * np.array(self.calculate_desired_direction_turning_direction()[:2])
         v0 = math.sqrt(pow(v0[0], 2) + pow(v0[1], 2))
         wxy = math.sqrt(pow(self.get_base_angular_vels()[0], 2) + pow(self.get_base_angular_vels()[1], 2))
@@ -1007,18 +939,15 @@ class QuadrupedRobotEnv(gym.Env):
         smooth_reward = (-1) * math.sqrt(pow(smooth_reward_list[0], 2) + pow(smooth_reward_list[1], 2) + pow(smooth_reward_list[2], 2))
 
         reward = energy_reward * ener_coeff + lin_vel_coeff * lin_vel_reward + ang_vel_reward * ang_vel_coeff + base_reward * base_pen_coeff + smooth_reward * smooth_coeff
-
         return reward
 
-    def _is_done(self, base_pose, body_orien):
-        # print(body_orien)
-        # print(abs(body_orien[0]))
-        # print(abs(body_orien[1]))
-        # print("inside done")
+    def _is_done(self):
+        base_pose, body_orien = p.getBasePositionAndOrientation(self.robot_id)
+        # print("base pose", base_pose[2])
         if self.timesteps == 1000:
             # print("1000 ts")
             self.done = True
-            print("pose = ", base_pose)
+            # print("pose = ", base_pose)
             # self.data = math.sqrt(math.pow(base_pose[0], 2) + math.pow(base_pose[1], 2))
 
         if abs(body_orien[0]) > 0.4:
@@ -1029,7 +958,7 @@ class QuadrupedRobotEnv(gym.Env):
             # print("pitch done")
             self.done = True
 
-        if base_pose[2] < 0.325:
+        if base_pose[2] < 0.327:
             # print("height done")
             self.done = True
 
@@ -1048,17 +977,62 @@ if __name__ == '__main__':
     qp = QuadrupedRobotEnv()
     qp.reset()
     obs = qp.get_obs()
-    print("obserbations", len(obs))
+    # print("obserbations", len(obs))
     # val = qp.get_swing_foot_tgt(0.3, [0.25, 0.25])
     # print("val", val)
     while True:
         # qp.reset()
-    #
-    #     # force = qp.get_ext_force()
-    #     # print("force", force)
-    #     heights = qp.get_height_scan()
-    #     print("heights", heights)
-        action = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        reward = qp.reward_function()
+        done = qp._is_done()
+        print("done", done)
+        # print("rewards", reward)
+        phase0 = qp.phase_leg0
+        phase1 = qp.phase_leg1
+        phase2 = qp.phase_leg2
+        phase3 = qp.phase_leg3
+
+        # print("phases", phase0, phase1, phase2, phase3)
+        if 0 <= phase0 <= math.pi:
+            x0 = -0.2
+            y0 = -0.02
+        elif math.pi <= phase0 <= 2 * math.pi:
+            x0 = 0.2
+            y0 = -0.02
+
+        if 0 <= phase1 <= math.pi:
+            x1 = -0.2
+            y1 = 0.02
+        elif math.pi <= phase1 <= 2 * math.pi:
+            x1 = 0.2
+            y1 = -0.02
+
+        if 0 <= phase2 <= math.pi:
+            x2 = -0.2
+            y2 = -0.02
+        elif math.pi <= phase2 <= 2 * math.pi:
+            x2 = 0.2
+            y2 = -0.02
+
+        if 0 <= phase3 <= math.pi:
+            x3 = -0.2
+            y3 = 0.02
+        elif math.pi <= phase3 <= 2 * math.pi:
+            x3 = 0.2
+            y3 = -0.02
+
+        # if qp.counter <= 40:
+        #     x0 = -0.1
+        #     x1 = 0.2
+        #     x2 = 0.2
+        #     x3 = -0.1
+
+        action = np.array([0, 0, 0, 0, x0, 0, 0, x1, 0, 0, x2, 0, 0, x3, 0, 0])
+        # if qp.counter % 25 == 0:
+        #     force = [random.uniform(-100, 100) for i in range(3)]  # Specify the force vector [X, Y, Z]
+        #     position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
+        #     link_index = -1
+        #     p.applyExternalForce(qp.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+        #     print(force)
 
         qp.step(action)
     #     print(action)
