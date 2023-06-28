@@ -12,7 +12,7 @@ def build_mlp(n_in, hidden, n_out, act_fn):
     li = []
     li.append(nn.Linear(n_in,hidden[0]))
     for i in range(1,len(hidden)):
-        li.append(act_fn(0.1))
+        li.append(act_fn())
         li.append(nn.Linear(hidden[i-1],hidden[i]))
     return nn.Sequential(*nn.ModuleList(li))
 
@@ -27,12 +27,13 @@ def weights_init_(m):
 class ValueNetwork(nn.Module):
     def __init__(self, num_inputs, hidden_dim):
         super(ValueNetwork, self).__init__()
-
-        self.value_net = build_mlp(num_inputs, [256, 256, 256], 1, nn.ReLU)
+        
+        self.value_net_x = build_mlp(71, [72], 64, nn.Tanh) 
+        self.value_net = build_mlp(194,[256, 128, 64], 1, nn.Tanh)
         self.apply(weights_init_)
 
     def forward(self, state):
-        x = self.value_net(state)
+        x = self.value_net(torch.concat((state[:,:130],F.tanh(self.value_net_x(state[:,130:]))),1))
         return x
 
 
@@ -41,19 +42,20 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
 
         # Q1 architecture
-        self.q1 = build_mlp(num_inputs + num_actions, [256, 256, 256], 1, nn.ReLU)
+        self.q1_x = build_mlp(71, [72], 64, nn.Tanh) 
+        self.q1 = build_mlp(194 + num_actions,[256, 128, 64], 1, nn.Tanh)
 
         # Q2 architecture
-        self.q2 = build_mlp(num_inputs + num_actions, [256, 256, 256], 1, nn.ReLU)
+        self.q2_x = build_mlp(71, [72], 64, nn.Tanh) 
+        self.q2 = build_mlp(194 + num_actions, [256, 128, 64], 1, nn.Tanh)
 
         self.apply(weights_init_)
 
     def forward(self, state, action):
-        xu = torch.cat([state, action], 1)
+        #xu = torch.cat([state, action], 1)
         
-        x1 = self.q1(xu)
-
-        x2 = self.q2(xu)
+        x1 = self.q1(torch.concat((state[:,:130], F.tanh(self.q1_x(state[:,130:])), action),1))
+        x2 = self.q2(torch.concat((state[:,:130], F.tanh(self.q2_x(state[:,130:])), action),1))
 
         return x1, x2
 
@@ -62,10 +64,11 @@ class GaussianPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, action_space=None):
         super(GaussianPolicy, self).__init__()
         
-        self.policy_net = build_mlp(num_inputs, [256, 256], 256, nn.ReLU)
-        
-        self.mean_linear = nn.Linear(256, num_actions)
-        self.log_std_linear = nn.Linear(256, num_actions)
+        self.policy_net_x = build_mlp(71, [72], 64, nn.Tanh) 
+        self.policy_net = build_mlp(194,[256, 128], 64, nn.Tanh)
+
+        self.mean_linear = nn.Linear(64, num_actions)
+        self.log_std_linear = nn.Linear(64, num_actions)
 
         self.apply(weights_init_)
 
@@ -80,7 +83,7 @@ class GaussianPolicy(nn.Module):
                 (action_space.high + action_space.low) / 2.)
 
     def forward(self, state):
-        x = self.policy_net(state)
+        x = self.policy_net(torch.concat((state[:,:130], F.tanh(self.policy_net_x(state[:,130:]))),1))
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)

@@ -25,7 +25,7 @@ parser.add_argument('--lr', type=float, default=0.0003, metavar='G',
 parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
                     help='Temperature parameter α determines the relative importance of the entropy\
                             term against the reward (default: 0.2)')
-parser.add_argument('--automatic_entropy_tuning', type=bool, default=False, metavar='G',
+parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metavar='G',
                     help='Automaically adjust α (default: False)')
 parser.add_argument('--seed', type=int, default=123456, metavar='N',
                     help='random seed (default: 123456)')
@@ -61,7 +61,7 @@ np.random.seed(args.seed)
 
 # Agent
 agent = SAC(env.observation_space.shape[0], env.action_space, args)
-agent.load_checkpoint("./checkpoints/sac_checkpoint_Quadruped_exp3")
+agent.load_checkpoint("./checkpoints/sac_checkpoint_Quadruped_exp4")
 
 avg_reward = 0.
 episodes = 10
@@ -74,7 +74,7 @@ for _  in range(episodes):
 
         next_state, reward, done, _ = env.step(action)
         episode_reward += reward
-
+        done = False
 
         state = next_state
     avg_reward += episode_reward

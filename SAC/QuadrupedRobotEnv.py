@@ -38,6 +38,8 @@ class QuadrupedRobotEnv(gym.Env):
         p.setAdditionalSearchPath(SEARCHPATH)  # Path to the meshes folder
         self.robot_id = p.loadURDF(URDFPATH, [0, 0, 0.58])
         self.NUM_LEGS = 4
+        
+
 
         # Definining terrain parameters
         self.terrain_size = 200
@@ -207,10 +209,10 @@ class QuadrupedRobotEnv(gym.Env):
         self.freq_leg2 = self.base_freq + freq_offsets[2]
         self.freq_leg3 = self.base_freq + freq_offsets[3]
 
-        self.phase_leg0 = (self.phase_offset0 + self.freq_leg0 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
-        self.phase_leg1 = (self.phase_offset1 + self.freq_leg1 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
-        self.phase_leg2 = (self.phase_offset2 + self.freq_leg2 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
-        self.phase_leg3 = (self.phase_offset3 + self.freq_leg3 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
+        self.phase_leg0 = (self.phase_offset0 + self.freq_leg0 * 0.025 * self.timesteps) % (2 * math.pi)
+        self.phase_leg1 = (self.phase_offset1 + self.freq_leg1 * 0.025 * self.timesteps) % (2 * math.pi)
+        self.phase_leg2 = (self.phase_offset2 + self.freq_leg2 * 0.025 * self.timesteps) % (2 * math.pi)
+        self.phase_leg3 = (self.phase_offset3 + self.freq_leg3 * 0.025 * self.timesteps) % (2 * math.pi)
 
         ftg_z0 = self.FTG(self.phase_leg0)
         ftg_z1 = self.FTG(self.phase_leg1)
@@ -569,7 +571,7 @@ class QuadrupedRobotEnv(gym.Env):
     def FTG(self, phase):
         # print("phase", phase)
         k = 2 * (phase - math.pi) / math.pi
-        h = 0.4
+        h = 0.12
         ftg = [0, 0, 0]
         if 0 <= k <= 1:
             ftg[2] = (h * ((-2) * pow(k, 3) + 3 * pow(k, 2)) - self.desired_height)
@@ -620,7 +622,7 @@ class QuadrupedRobotEnv(gym.Env):
 
     def calculate_desired_direction_turning_direction(self, ):
         horizontal_twist_dirs = []
-        if self.counter % 2000000 == 0 and self.counter != 0:
+        if self.counter % 6000000 == 0 and self.counter != 0:
             self.twist_dir = random.choice([-1, 0, 1])
             self.angle = random.uniform(-3.14, 3.14)
 
@@ -841,7 +843,7 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_ground_friction_coeff(self):
         fric_coeff = [0.6, 0.6, 0.6, 0.6]
-        if self.counter % 1000000 == 0 and self.counter != 0:
+        if self.counter % 3000000 == 0 and self.counter != 0:
             fric_coeff = [random.uniform(0.1, 1) for i in range(4)]
             p.changeDynamics(self.robot_id,
                              -1,
@@ -856,12 +858,13 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_ext_force(self):
         force = [0.0, 0.0, 0.0]
-        if self.counter % 1000000 == 0 and self.counter != 0:
-            force = [random.uniform(-3, 3) for i in range(3)]  # Specify the force vector [X, Y, Z]
+        if self.counter > 5000000 and self.counter != 0:
+            force = [random.uniform(-80, 80) for i in range(3)]  # Specify the force vector [X, Y, Z]
             position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
             link_index = -1  # Specify the link index (-1 for base/root link)
 
-            p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+            if(self.counter % 1000):
+              p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
 
         return force
 
@@ -900,7 +903,7 @@ class QuadrupedRobotEnv(gym.Env):
         smooth_lim = 0.025
         ener_lim = 0.0004
 
-        if self.counter % 500000 == 0 and self.counter != 1:
+        if self.counter % 100000 == 0 and self.counter != 1:
             base_pen_coeff = min(base_pen_coeff * 2, base_pen_limit)
             smooth_coeff = min(smooth_coeff * 2, smooth_lim)
             ener_coeff = min(ener_coeff * 2, ener_lim)
