@@ -645,7 +645,7 @@ class QuadrupedRobotEnv(gym.Env):
         horizontal_twist_dirs = []
         if self.counter % 6000000 == 0 and self.counter != 0:
             self.twist_dir = random.choice([-1, 0, 1])
-            self.angle = random.uniform(0, 3.14 / 2)
+            self.angle = random.uniform(0, 3.14 / 4)
 
         horizontal_twist_dirs.extend([math.cos(self.angle), math.sin(self.angle)])
         horizontal_twist_dirs.append(self.twist_dir)
