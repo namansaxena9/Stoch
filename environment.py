@@ -9,7 +9,7 @@ from gym import spaces
 import pybullet as p
 import numpy as np
 
-BASEDIR = "/Users/navakrish/"
+BASEDIR = "/Users/navakrish"
 URDFPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_description", "urdf", "stoch3.urdf")
 # print(URDFPATH)
 SEARCHPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_description", "meshes")
@@ -17,9 +17,14 @@ BULLETPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_descr
 
 
 class QuadrupedRobotEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, max_episode_steps=1000):
+
         # self.physics_client = p.connect(p.DIRECT)
+
         self.physics_client = p.connect(p.GUI)
+
+        self.max_episode_steps = max_episode_steps
+
         self._motor_offset = np.array([0] * 12)
         # self._motor_offset = np.array([0, -0.8, -1.5, 0, 0.8, -1.5, 0, -0.8, -1.5, 0, 0.8, -1.5])
 
@@ -32,6 +37,9 @@ class QuadrupedRobotEnv(gym.Env):
         p.setAdditionalSearchPath(SEARCHPATH)  # Path to the meshes folder
         self.robot_id = p.loadURDF(URDFPATH, [0, 0, 0.58])
         self.NUM_LEGS = 4
+
+        self.time_interval = 0.01
+        self.two_pi = 2 * math.pi
 
         # Definining terrain parameters
         self.terrain_size = 200
@@ -54,14 +62,16 @@ class QuadrupedRobotEnv(gym.Env):
 
         # Setting the position of the terrain to be at the center of the world
         p.resetBasePositionAndOrientation(self.terrain_body, [0, 0, 0], [0, 0, 0, 1])
+        p.resetBasePositionAndOrientation(self.robot_id, [0, 0, 0.69], [0, 0, 0, 1])
+
         p.setGravity(0, 0, -9.81)
         # p.setPhysicsEngineParameter(contactStiffness=100000.0)
-        p.setTimeStep(0.025, self.physics_client)
+        p.setTimeStep(self.time_interval, self.physics_client)
         p.changeDynamics(
             self.robot_id,
             -1,
-            lateralFriction=0.6,
-            spinningFriction=0.6,
+            lateralFriction=0.8,
+            spinningFriction=0.8,
             rollingFriction=0.05,
             physicsClientId=0,
             restitution=0.15,
@@ -71,8 +81,8 @@ class QuadrupedRobotEnv(gym.Env):
         p.changeDynamics(
             self.terrain_body,
             -1,
-            lateralFriction=0.6,
-            spinningFriction=0.6,
+            lateralFriction=0.8,
+            spinningFriction=0.8,
             rollingFriction=0.05,
             physicsClientId=0,
         )
@@ -80,13 +90,15 @@ class QuadrupedRobotEnv(gym.Env):
         self.state_id = p.saveState()
         p.saveBullet(BULLETPATH)
         # num_joints = p.getNumJoints(self.robot_id)
-        self.base_freq = 1.25
+        self.base_freq = 2.5
 
-        self.desired_speed = 0.6
-        self.desired_twisting_speed = 0.6
+        self.desired_speed = 0.4
+        self.desired_twisting_speed = 0.4
 
         self.twist_dir = 0
         self.angle = 0
+        self.vx = self.desired_speed * math.cos(self.angle)
+        self.vy = self.desired_speed * math.sin(self.angle)
 
         # self.valid_indices = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
         self.leg_valid = [0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14]
@@ -121,20 +133,23 @@ class QuadrupedRobotEnv(gym.Env):
         self.leg3_tar_tminus1 = [0.0, 0.0, 0.0]
         self.leg3_tar_tminus2 = [0.0, 0.0, 0.0]
 
-        self.action_factor = 0.05
+        self.action_factor = 0.01
         self.frequency_factor = 0.5
 
         self.action_space = spaces.Box(low=-1, high=1, shape=(16,))
 
         self.obs_lower_limits = np.array(
             [
-                -1, -1, -1, -3.14, -3.14, -3.14, -5, -5, -5, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14,
+                -1, -1, -1, -3.14, -3.14, -3.14, -5, -5, -5, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14,
+                -3.14, -3.14, -3.14,
                 -3.14, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -1, -1, -1, -1, -1, -1,
                 -1, -1, -2.5, -2.5, -2.5, -2.5, 0, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14,
                 -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14, -3.14,
                 -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100,
-                -100, -100, -100, -100, -100, -100, -100, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5,
-                -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -10, -10, -10, -10, -10, -10,
+                -100, -100, -100, -100, -100, -100, -100, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5,
+                -2.5, -2.5, -2.5, -2.5, -2.5,
+                -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5,
+                -2.5, -2.5, -2.5, -2.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -10, -10, -10, -10, -10, -10,
                 -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, -10,
                 -10, -10, -10, -10, -10, -10, -10, -10, -10, -10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0,
@@ -146,15 +161,26 @@ class QuadrupedRobotEnv(gym.Env):
                 3.14, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 1, 1, 1, 1, 1, 1, 1, 1, 2.5, 2.5, 2.5,
                 2.5, 2.5, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14,
                 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 3.14, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100,
-                100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5,
-                2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10, 10, 10, 10, 10, 10, 10,
-                10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 1000, 1000,
+                100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5,
+                2.5, 2.5, 2.5, 2.5,
+                2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5,
+                2.5, 2.5, 2.5, 2.5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10, 10, 10, 10, 10, 10, 10,
+                10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+                10, 10, 10, 1000, 1000,
                 1000, 1000, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 50, 50, 50
             ])
         # print("len low", len(self.obs_lower_limits))
 
-        self.observation_space = spaces.Box(low=self.obs_lower_limits, high=self.obs_upper_limits, shape=(201,), dtype=np.float32)
-        self.initial_action = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        self.observation_space = spaces.Box(low=self.obs_lower_limits, high=self.obs_upper_limits, shape=(201,),
+                                            dtype=np.float32)
+
+        angle_1 = 0.007
+        angle_2 = 1.035
+        angle_3 = 1.6  # 1.794
+        self.initial_action = np.array(
+            [-angle_1, angle_2, -angle_3, angle_1, angle_2, -angle_3, -angle_1, angle_2, -angle_3, angle_1, angle_2,
+             -angle_3])
+
         self.present_state = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         self.present_vels = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
@@ -180,13 +206,11 @@ class QuadrupedRobotEnv(gym.Env):
         self.done = False
 
         foot_clearance = 0.01
-        height = 0.64
+        height = 0.45
         self.desired_height = height - foot_clearance
         # self.data = 0.0
 
     def step(self, action):
-        print("step")
-        # print("action", action)
         action = list(action)
         freq_offsets = action[:4]
         for i, f in enumerate(freq_offsets):
@@ -201,10 +225,14 @@ class QuadrupedRobotEnv(gym.Env):
         self.freq_leg2 = self.base_freq + freq_offsets[2]
         self.freq_leg3 = self.base_freq + freq_offsets[3]
 
-        self.phase_leg0 = (self.phase_offset0 + self.freq_leg0 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
-        self.phase_leg1 = (self.phase_offset1 + self.freq_leg1 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
-        self.phase_leg2 = (self.phase_offset2 + self.freq_leg2 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
-        self.phase_leg3 = (self.phase_offset3 + self.freq_leg3 * 0.025 * self.timesteps * 2 * math.pi) % (2 * math.pi)
+        self.phase_leg0 = (self.phase_offset0 + self.freq_leg0 * self.time_interval * self.two_pi * self.timesteps) % (
+                2 * math.pi)
+        self.phase_leg1 = (self.phase_offset1 + self.freq_leg1 * self.time_interval * self.two_pi * self.timesteps) % (
+                2 * math.pi)
+        self.phase_leg2 = (self.phase_offset2 + self.freq_leg2 * self.time_interval * self.two_pi * self.timesteps) % (
+                2 * math.pi)
+        self.phase_leg3 = (self.phase_offset3 + self.freq_leg3 * self.time_interval * self.two_pi * self.timesteps) % (
+                2 * math.pi)
 
         ftg_z0 = self.FTG(self.phase_leg0)
         ftg_z1 = self.FTG(self.phase_leg1)
@@ -265,9 +293,8 @@ class QuadrupedRobotEnv(gym.Env):
             d[id] = joint_angles[i]
 
         for joint_index in self.leg_valid:
-
             p.setJointMotorControl2(self.robot_id, joint_index, controlMode=p.POSITION_CONTROL,
-                                    targetPosition=d[joint_index], positionGain=0.1)
+                                    targetPosition=d[joint_index], positionGain=1.0, force=50)
 
         # Step the simulation forward by one time step
         p.stepSimulation()
@@ -283,17 +310,21 @@ class QuadrupedRobotEnv(gym.Env):
         self.tminus1_vels = self.present_vels
         self.present_vels = obs[21:33]
 
-        reward = self.reward_function()
+        reward, info = self.calculate_reward()
         done = self._is_done()
-        print("timesteps", self.timesteps)
+        # print("timesteps", self.timesteps)
 
-        return obs, reward, done, {}
-
+        return obs, reward, done, info
 
     def reset(self):
         # Reset the simulation and the robot's state
-        print("reset")
+        # print("reset")
         p.resetSimulation()
+
+        cameraTargetPosition = [0, 0, 0]  # Example target position [x, y, z]
+        p.resetDebugVisualizerCamera(cameraDistance=3, cameraYaw=0, cameraPitch=-30,
+                                     cameraTargetPosition=cameraTargetPosition)
+
         # self.timesteps = 0
         self.done = False
         p.setAdditionalSearchPath(SEARCHPATH)  # Path to the meshes folder
@@ -321,9 +352,11 @@ class QuadrupedRobotEnv(gym.Env):
 
         # Setting the position of the terrain to be at the center of the world
         p.resetBasePositionAndOrientation(self.terrain_body, [0, 0, 0], [0, 0, 0, 1])
+        p.resetBasePositionAndOrientation(self.robot_id, [0, 0, 0.65], [0, 0, 0, 1])
+
         p.setGravity(0, 0, -9.81)
         # p.setPhysicsEngineParameter(contactStiffness=100000.0)
-        p.setTimeStep(0.025, self.physics_client)
+        p.setTimeStep(self.time_interval, self.physics_client)
         p.changeDynamics(
             self.robot_id,
             -1,
@@ -476,11 +509,11 @@ class QuadrupedRobotEnv(gym.Env):
         if leg_id == 0:
             joint_angles = [all_joint_angles[i] for i in joint_ids]
         elif leg_id == 1:
-            joint_angles = [all_joint_angles[i-1] for i in joint_ids]
+            joint_angles = [all_joint_angles[i - 1] for i in joint_ids]
         elif leg_id == 2:
-            joint_angles = [all_joint_angles[i-2] for i in joint_ids]
+            joint_angles = [all_joint_angles[i - 2] for i in joint_ids]
         else:
-            joint_angles = [all_joint_angles[i-3] for i in joint_ids]
+            joint_angles = [all_joint_angles[i - 3] for i in joint_ids]
 
         # joint_angles = [all_joint_angles[i] for i in joint_ids]
         # print("joiny angles", joint_angles)
@@ -525,7 +558,7 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_obs(self):
         dirs = self.calculate_desired_direction_turning_direction()
-        twist = [dirs[-1]]  #discrete
+        twist = [dirs[-1]]  # discrete
         lin_dir = dirs[:-1]
         base_angular_vel = self.get_base_angular_vels()
         base_linear_vel = self.get_base_linear_vels()
@@ -545,20 +578,21 @@ class QuadrupedRobotEnv(gym.Env):
         # print("terrain height", terrain_height)
         foot_contact_forces = self.get_foot_contact_forces()
         # print("foot contat forces", foot_contact_forces)
-        foot_contact_states = self.find_binary_foot_contact()  #discrete
-        thigh_contact_states = self.get_thigh_contact_states()  #discrete
-        shank_contact_states = self.get_shank_contact()  #discrete
+        foot_contact_states = self.find_binary_foot_contact()  # discrete
+        thigh_contact_states = self.get_thigh_contact_states()  # discrete
+        shank_contact_states = self.get_shank_contact()  # discrete
         ground_fric = self.get_ground_friction_coeff()
         ext_force = self.get_ext_force()
 
-        observation = np.array(twist + lin_dir + base_angular_vel + base_linear_vel + joint_pose + joint_vels + foot_locs + ftg_phases + ftg_freq + base_freq + pose_history + vels_history + foot_tar_history + terrain_normal + terrain_height + foot_contact_forces + foot_contact_states + thigh_contact_states + shank_contact_states + ground_fric + ext_force)
+        observation = np.array(
+            twist + lin_dir + base_angular_vel + base_linear_vel + joint_pose + joint_vels + foot_locs + ftg_phases + ftg_freq + base_freq + pose_history + vels_history + foot_tar_history + terrain_normal + terrain_height + foot_contact_forces + foot_contact_states + thigh_contact_states + shank_contact_states + ground_fric + ext_force)
         # print("len obs", len(observation))
         return observation
 
     def FTG(self, phase):
         # print("phase", phase)
         k = 2 * (phase - math.pi) / math.pi
-        h = 0.4
+        h = 0.12
         ftg = [0, 0, 0]
         if 0 <= k <= 1:
             ftg[2] = (h * ((-2) * pow(k, 3) + 3 * pow(k, 2)) - self.desired_height)
@@ -609,9 +643,9 @@ class QuadrupedRobotEnv(gym.Env):
 
     def calculate_desired_direction_turning_direction(self, ):
         horizontal_twist_dirs = []
-        if self.counter % 2000000 == 0 and self.counter != 0:
+        if self.counter % 6000000 == 0 and self.counter != 0:
             self.twist_dir = random.choice([-1, 0, 1])
-            self.angle = random.uniform(-3.14, 3.14)
+            self.angle = random.uniform(0, 3.14 / 2)
 
         horizontal_twist_dirs.extend([math.cos(self.angle), math.sin(self.angle)])
         horizontal_twist_dirs.append(self.twist_dir)
@@ -688,7 +722,7 @@ class QuadrupedRobotEnv(gym.Env):
         return vels
 
     def get_foot_target_history(self):
-        foot_target = self.leg0_tar_tminus2 + self.leg1_tar_tminus2 + self.leg2_tar_tminus2 +self.leg3_tar_tminus2 + \
+        foot_target = self.leg0_tar_tminus2 + self.leg1_tar_tminus2 + self.leg2_tar_tminus2 + self.leg3_tar_tminus2 + \
                       self.leg0_tar_tminus1 + self.leg1_tar_tminus1 + self.leg2_tar_tminus1 + self.leg3_tar_tminus1
 
         return foot_target
@@ -758,7 +792,7 @@ class QuadrupedRobotEnv(gym.Env):
         heights = []
         for coord in coords:
             (x1, y1) = (coord[0], coord[1])
-            (i, j) = (int(100 + x1/self.terrain_scale), int(100 + y1/self.terrain_scale))
+            (i, j) = (int(100 + x1 / self.terrain_scale), int(100 + y1 / self.terrain_scale))
             # print(i,j)
             heights.append(self.heights[i][j])
         # print("len heights", len(heights))
@@ -830,7 +864,7 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_ground_friction_coeff(self):
         fric_coeff = [0.6, 0.6, 0.6, 0.6]
-        if self.counter % 1000000 == 0 and self.counter != 0:
+        if self.counter % 3000000 == 0 and self.counter != 0:
             fric_coeff = [random.uniform(0.1, 1) for i in range(4)]
             p.changeDynamics(self.robot_id,
                              -1,
@@ -845,12 +879,13 @@ class QuadrupedRobotEnv(gym.Env):
 
     def get_ext_force(self):
         force = [0.0, 0.0, 0.0]
-        if self.counter % 1000000 == 0 and self.counter != 0:
-            force = [random.uniform(-3, 3) for i in range(3)]  # Specify the force vector [X, Y, Z]
+        if self.counter > 5000000 and self.counter != 0:
+            force = [random.uniform(-80, 80) for i in range(3)]  # Specify the force vector [X, Y, Z]
             position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
             link_index = -1  # Specify the link index (-1 for base/root link)
 
-            p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+            if (self.counter % 1000):
+                p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
 
         return force
 
@@ -877,22 +912,111 @@ class QuadrupedRobotEnv(gym.Env):
 
         return np.array(link_local_position)
 
-    def reward_function(self):
-        global lin_vel_reward, ang_vel_reward
-        lin_vel_coeff = 1
-        ang_vel_coeff = 1
-        base_pen_coeff = 0.0001
+    # def reward_function(self):
+    #     global lin_vel_reward, ang_vel_reward
+    #     lin_vel_coeff = 1
+    #     ang_vel_coeff = 0.001
+    #     base_pen_coeff = 0.0001
+    #     smooth_coeff = 0.00001
+    #     ener_coeff = 0.000001
+    #
+    #     ang_vel_lim = 1
+    #     base_pen_limit = 0.4
+    #     smooth_lim = 0.025
+    #     ener_lim = 0.0004
+    #
+    #     if self.counter % 100000 == 0 and self.counter != 1:
+    #         base_pen_coeff = min(base_pen_coeff * 2, base_pen_limit)
+    #         smooth_coeff = min(smooth_coeff * 2, smooth_lim)
+    #         ener_coeff = min(ener_coeff * 2, ener_lim)
+    #         ang_vel_coeff = min(ang_vel_coeff * 2, ang_vel_lim)
+    #
+    #     torques = []
+    #     for i in self.leg_valid:
+    #         joint_state = p.getJointState(self.robot_id, i)
+    #         torques.append(joint_state[3])
+    #     torques = np.array(torques)
+    #
+    #     vels = np.array(self.get_joint_velocity())
+    #     ener = np.multiply(vels, torques)
+    #     energy_reward = abs(sum(list(ener))) * (-1)
+    #
+    #     vpr = sum(list(np.multiply(np.array(self.calculate_desired_direction_turning_direction()[:2]),
+    #                                np.array(self.get_base_linear_vels()[:2]))))
+    #     v_0 = math.sqrt(pow(self.get_base_linear_vels()[:2][0], 2) + pow(self.get_base_linear_vels()[:2][1], 2))
+    #     if vpr == 0:
+    #         lin_vel_reward = 0.0
+    #     if vpr < self.desired_speed:
+    #         lin_vel_reward = math.exp((-2) * pow((vpr - self.desired_speed), 2))
+    #     elif vpr >= self.desired_speed:
+    #         lin_vel_reward = 1.0
+    #
+    #     wpr = self.twist_dir * self.get_base_angular_vels()[-1]
+    #     w_0 = abs(self.get_base_angular_vels()[-1])
+    #     if wpr == 0:
+    #         ang_vel_reward = math.exp((-1.5) * pow(w_0, 2))
+    #
+    #     if wpr < self.desired_twisting_speed:
+    #         ang_vel_reward = math.exp((-1.5) * pow((wpr - self.desired_twisting_speed), 2))
+    #
+    #     elif wpr > self.desired_twisting_speed:
+    #         ang_vel_reward = 1.0
+    #
+    #     # print("lin vel reward", lin_vel_reward * lin_vel_coeff)
+    #     v0 = np.array(self.get_base_linear_vels()[:2]) - vpr * np.array(
+    #         self.calculate_desired_direction_turning_direction()[:2])
+    #     v0 = math.sqrt(pow(v0[0], 2) + pow(v0[1], 2))
+    #     wxy = math.sqrt(pow(self.get_base_angular_vels()[0], 2) + pow(self.get_base_angular_vels()[1], 2))
+    #
+    #     if vpr == 0:
+    #         base_reward = math.exp((-1.5) * pow(v_0, 2)) + math.exp((-1.5) * pow(wxy, 2))
+    #
+    #     else:
+    #         base_reward = math.exp((-1.5) * pow(v0, 2)) + math.exp((-1.5) * pow(wxy, 2))
+    #
+    #     smooth_reward_list = np.array(self.leg0_tar_t) - 2 * np.array(self.leg0_tar_tminus1) + np.array(
+    #         self.leg0_tar_tminus2) + np.array(self.leg1_tar_t) - 2 * np.array(self.leg1_tar_tminus1) + np.array(
+    #         self.leg1_tar_tminus2) + np.array(self.leg2_tar_t) - 2 * np.array(self.leg2_tar_tminus1) + np.array(
+    #         self.leg2_tar_tminus2) + np.array(self.leg3_tar_t) - 2 * np.array(self.leg3_tar_tminus1) + np.array(
+    #         self.leg3_tar_tminus2)
+    #     smooth_reward = (-1) * math.sqrt(
+    #         pow(smooth_reward_list[0], 2) + pow(smooth_reward_list[1], 2) + pow(smooth_reward_list[2], 2))
+    #
+    #     reward = energy_reward * ener_coeff + lin_vel_coeff * lin_vel_reward + ang_vel_reward * ang_vel_coeff + base_reward * base_pen_coeff + smooth_reward * smooth_coeff
+    #
+    #     info = {}
+    #
+    #     info['energy_reward'] = energy_reward * ener_coeff
+    #     info['vel_reward'] = lin_vel_coeff * lin_vel_reward
+    #     info['ang_vel_reward'] = ang_vel_reward * ang_vel_coeff
+    #     info['base_reward'] = base_reward * base_pen_coeff
+    #     info['smooth_reward'] = smooth_reward * smooth_coeff
+    #
+    #     return reward, info
+
+    def calculate_reward(self):
+        lin_vel_coeff = 7
+        lateral_coeff = 0.01
         smooth_coeff = 0.00001
         ener_coeff = 0.000001
+        z_vel_coeff = 0.001
+        action_rate_coeff = 0.001
+        survival_bonus = 0.01
 
-        base_pen_limit = 0.4
         smooth_lim = 0.025
         ener_lim = 0.0004
+        z_vel_lim = 0.5
+        action_rate_lim = 1
+        lateral_lim = 3
+        vx, vy, vz = p.getBaseVelocity(self.robot_id)[0]
+        wz = self.get_base_angular_vels()[-1]
 
         if self.counter % 500000 == 0 and self.counter != 1:
-            base_pen_coeff = min(base_pen_coeff * 2, base_pen_limit)
             smooth_coeff = min(smooth_coeff * 2, smooth_lim)
             ener_coeff = min(ener_coeff * 2, ener_lim)
+            z_vel_coeff = min(z_vel_coeff * 2, z_vel_lim)
+            action_rate_coeff = min(action_rate_coeff * 2, action_rate_lim)
+            lateral_coeff = min(lateral_coeff * 2, lateral_lim)
 
         torques = []
         for i in self.leg_valid:
@@ -904,47 +1028,54 @@ class QuadrupedRobotEnv(gym.Env):
         ener = np.multiply(vels, torques)
         energy_reward = abs(sum(list(ener))) * (-1)
 
-        vpr = sum(list(np.multiply(np.array(self.calculate_desired_direction_turning_direction()[:2]), np.array(self.get_base_linear_vels()[:2]))))
-        v_0 = math.sqrt(pow(self.get_base_linear_vels()[:2][0], 2) + pow(self.get_base_linear_vels()[:2][1], 2))
-        if vpr == 0:
-            lin_vel_reward = 0.0
-        if vpr < self.desired_speed:
-            lin_vel_reward = math.exp((-2) * pow((vpr - self.desired_speed), 2))
-        elif vpr >= self.desired_speed:
-            lin_vel_reward = 1.0
+        self.vx = self.desired_speed * math.cos(self.angle)
+        self.vy = self.desired_speed * math.sin(self.angle)
+        forward_vel_reward = self.vx - abs(vx - self.vx_target) - abs(self.desired_twisting_speed * self.twist_dir - wz)
+        lateral_reward = pow(self.vy - vy, 2) * (-1)
 
-        wpr = self.twist_dir * self.get_base_angular_vels()[-1]
-        w_0 = abs(self.get_base_angular_vels()[-1])
-        if wpr == 0:
-            ang_vel_reward = math.exp((-1.5) * pow(w_0, 2))
+        smooth_reward_list = np.array(self.leg0_tar_t) - 2 * np.array(self.leg0_tar_tminus1) + np.array(
+            self.leg0_tar_tminus2) + np.array(self.leg1_tar_t) - 2 * np.array(self.leg1_tar_tminus1) + np.array(
+            self.leg1_tar_tminus2) + np.array(self.leg2_tar_t) - 2 * np.array(self.leg2_tar_tminus1) + np.array(
+            self.leg2_tar_tminus2) + np.array(self.leg3_tar_t) - 2 * np.array(self.leg3_tar_tminus1) + np.array(
+            self.leg3_tar_tminus2)
+        smooth_reward = (-1) * math.sqrt(
+            pow(smooth_reward_list[0], 2) + pow(smooth_reward_list[1], 2) + pow(smooth_reward_list[2], 2))
+        z_vel_reward = (-1) * pow(vz, 2)
 
-        if wpr < self.desired_twisting_speed:
-            ang_vel_reward = math.exp((-1.5) * pow((wpr - self.desired_twisting_speed), 2))
+        action_rate_list = np.array(self.leg3_tar_t) - np.array(self.leg3_tar_tminus1) + np.array(
+            self.leg2_tar_t) - np.array(self.leg2_tar_tminus1) + \
+                           np.array(self.leg1_tar_t) - np.array(self.leg1_tar_tminus1) + np.array(
+            self.leg0_tar_t) - np.array(self.leg0_tar_tminus1)
 
-        elif wpr > self.desired_twisting_speed:
-            ang_vel_reward = 1.0
+        action_rate_reward = (-1) * math.sqrt(
+            pow(action_rate_list[0], 2) + pow(action_rate_list[1], 2) + pow(action_rate_list[2], 2))
 
-        # print("lin vel reward", lin_vel_reward * lin_vel_coeff)
-        v0 = np.array(self.get_base_linear_vels()[:2]) - vpr * np.array(self.calculate_desired_direction_turning_direction()[:2])
-        v0 = math.sqrt(pow(v0[0], 2) + pow(v0[1], 2))
-        wxy = math.sqrt(pow(self.get_base_angular_vels()[0], 2) + pow(self.get_base_angular_vels()[1], 2))
+        # print("line vel", forward_vel_reward)
+        # print("lateral", lateral_reward)
+        # print("action rate", action_rate_reward)
+        # print("smoothness", smooth_reward)
+        # print("z vel", z_vel_reward)
+        # print("energy", energy_reward)
 
-        if vpr == 0:
-            base_reward = math.exp((-1.5) * pow(v_0, 2)) + math.exp((-1.5) * pow(wxy, 2))
+        reward = energy_reward * ener_coeff + smooth_reward * smooth_coeff + forward_vel_reward * lin_vel_coeff + lateral_reward * lateral_coeff + \
+                 z_vel_reward * z_vel_coeff + action_rate_reward * action_rate_coeff + survival_bonus
 
-        else:
-            base_reward = math.exp((-1.5) * pow(v0, 2)) + math.exp((-1.5) * pow(wxy, 2))
+        info = {}
 
-        smooth_reward_list = np.array(self.leg0_tar_t) - 2 * np.array(self.leg0_tar_tminus1) + np.array(self.leg0_tar_tminus2) + np.array(self.leg1_tar_t) - 2 * np.array(self.leg1_tar_tminus1) + np.array(self.leg1_tar_tminus2) + np.array(self.leg2_tar_t) - 2 * np.array(self.leg2_tar_tminus1) + np.array(self.leg2_tar_tminus2) + np.array(self.leg3_tar_t) - 2 * np.array(self.leg3_tar_tminus1) + np.array(self.leg3_tar_tminus2)
-        smooth_reward = (-1) * math.sqrt(pow(smooth_reward_list[0], 2) + pow(smooth_reward_list[1], 2) + pow(smooth_reward_list[2], 2))
+        info['energy_reward'] = energy_reward * ener_coeff
+        info['vel_reward'] = lin_vel_coeff * forward_vel_reward
+        info['lateral_vel_reward'] = lateral_reward * lateral_coeff
+        info['z-vel_reward'] = z_vel_reward * z_vel_coeff
+        info['smooth_reward'] = smooth_reward * smooth_coeff
+        info['action_rate_reward'] = action_rate_reward * action_rate_coeff
+        info['survival_reward'] = survival_bonus
 
-        reward = energy_reward * ener_coeff + lin_vel_coeff * lin_vel_reward + ang_vel_reward * ang_vel_coeff + base_reward * base_pen_coeff + smooth_reward * smooth_coeff
-        return reward
+        return reward, info
 
     def _is_done(self):
         base_pose, body_orien = p.getBasePositionAndOrientation(self.robot_id)
         # print("base pose", base_pose[2])
-        if self.timesteps == 1000:
+        if self.timesteps == self.max_episode_steps:
             # print("1000 ts")
             self.done = True
             # print("pose = ", base_pose)
@@ -982,9 +1113,9 @@ if __name__ == '__main__':
     # print("val", val)
     while True:
         # qp.reset()
-        reward = qp.reward_function()
+        # reward = qp.reward_function()
         done = qp._is_done()
-        print("done", done)
+        # print("done", done)
         # print("rewards", reward)
         phase0 = qp.phase_leg0
         phase1 = qp.phase_leg1
@@ -993,40 +1124,51 @@ if __name__ == '__main__':
 
         # print("phases", phase0, phase1, phase2, phase3)
         if 0 <= phase0 <= math.pi:
-            x0 = -0.2
-            y0 = -0.02
-        elif math.pi <= phase0 <= 2 * math.pi:
             x0 = 0.2
-            y0 = -0.02
+            y0 = 0.005
+        elif math.pi <= phase0 <= 2 * math.pi:
+            x0 = -0.2
+            y0 = 0
 
         if 0 <= phase1 <= math.pi:
-            x1 = -0.2
-            y1 = 0.02
-        elif math.pi <= phase1 <= 2 * math.pi:
             x1 = 0.2
-            y1 = -0.02
+            y1 = -0.005
+        elif math.pi <= phase1 <= 2 * math.pi:
+            x1 = -0.2
+            y1 = 0
 
         if 0 <= phase2 <= math.pi:
-            x2 = -0.2
-            y2 = -0.02
-        elif math.pi <= phase2 <= 2 * math.pi:
             x2 = 0.2
-            y2 = -0.02
+            y2 = -0.005
+        elif math.pi <= phase2 <= 2 * math.pi:
+            x2 = -0.2
+            y2 = 0
 
         if 0 <= phase3 <= math.pi:
-            x3 = -0.2
-            y3 = 0.02
-        elif math.pi <= phase3 <= 2 * math.pi:
             x3 = 0.2
-            y3 = -0.02
+            y3 = 0.005
+        elif math.pi <= phase3 <= 2 * math.pi:
+            x3 = -0.2
+            y3 = 0
 
-        # if qp.counter <= 40:
-        #     x0 = -0.1
-        #     x1 = 0.2
-        #     x2 = 0.2
-        #     x3 = -0.1
+        if qp.counter <= 20:
+            x0 = 0.1
+            y0 = 0
 
-        action = np.array([0, 0, 0, 0, x0, 0, 0, x1, 0, 0, x2, 0, 0, x3, 0, 0])
+            x1 = 0
+            y1 = 0.005
+
+            x2 = 0
+            y2 = 0.005
+
+            x3 = 0.1
+            y3 = 0.005
+
+        # print("x0", x0)
+        # print("x3", x3)
+
+        action = np.array([0, 0, 0, 0, -x0, 0, 0, -x1, 0, 0, -x2, 0, 0, -x3, 0, 0])
+        reward = qp.calculate_reward()
         # if qp.counter % 25 == 0:
         #     force = [random.uniform(-100, 100) for i in range(3)]  # Specify the force vector [X, Y, Z]
         #     position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
@@ -1036,4 +1178,3 @@ if __name__ == '__main__':
 
         qp.step(action)
     #     print(action)
-
