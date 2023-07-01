@@ -19,9 +19,8 @@ BULLETPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_descr
 class QuadrupedRobotEnv(gym.Env):
     def __init__(self, max_episode_steps=1000):
 
-        # self.physics_client = p.connect(p.DIRECT)
-
-        self.physics_client = p.connect(p.GUI)
+        self.physics_client = p.connect(p.DIRECT)
+        # self.physics_client = p.connect(p.GUI)
 
         self.max_episode_steps = max_episode_steps
 
@@ -645,7 +644,7 @@ class QuadrupedRobotEnv(gym.Env):
         horizontal_twist_dirs = []
         if self.counter % 6000000 == 0 and self.counter != 0:
             self.twist_dir = random.choice([-1, 0, 1])
-            self.angle = random.uniform(0, 3.14 / 4)
+            self.angle = random.uniform(0, 3.14 / 2)
 
         horizontal_twist_dirs.extend([math.cos(self.angle), math.sin(self.angle)])
         horizontal_twist_dirs.append(self.twist_dir)
@@ -1030,8 +1029,9 @@ class QuadrupedRobotEnv(gym.Env):
 
         self.vx = self.desired_speed * math.cos(self.angle)
         self.vy = self.desired_speed * math.sin(self.angle)
-        forward_vel_reward = self.vx - abs(vx - self.vx_target) - abs(self.desired_twisting_speed * self.twist_dir - wz)
-        lateral_reward = pow(self.vy - vy, 2) * (-1)
+        # forward_vel_reward = self.vx - abs(vx - self.vx_target) - abs(self.desired_twisting_speed * self.twist_dir - wz)
+        forward_vel_reward = min(self.vx, self.desired_speed)
+        lateral_reward = (pow(self.vy - vy, 2) + pow(self.desired_twisting_speed * self.twist_dir - wz, 2)) * (-1)
 
         smooth_reward_list = np.array(self.leg0_tar_t) - 2 * np.array(self.leg0_tar_tminus1) + np.array(
             self.leg0_tar_tminus2) + np.array(self.leg1_tar_t) - 2 * np.array(self.leg1_tar_tminus1) + np.array(
