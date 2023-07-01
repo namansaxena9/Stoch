@@ -13,6 +13,8 @@ qp = QuadrupedRobotEnv()
 models_dir = "."
 log_dir = "."
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 ppo_path = os.path.join(models_dir, 'PPO')
 # model_dir = os.path.join(".", "PPO", "17600000")
 
@@ -58,6 +60,7 @@ class CustomNN(BaseFeaturesExtractor):
 
     def __init__(self, observation_space: qp.observation_space, features_dim: int = 16):
         super().__init__(observation_space, features_dim)
+        # self.features_extractor.to(device)
         self.l1 = nn.Linear(71, 72)
         self.a1 = nn.ReLU()
         self.l2 = nn.Linear(72, 64)
@@ -71,7 +74,11 @@ class CustomNN(BaseFeaturesExtractor):
         self.a5 = nn.ReLU()
         self.l6 = nn.Linear(64, features_dim)
 
+        if torch.cuda.is_available():
+            self.cuda()
+
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
+        observations = observations.to(device)
         obs = observations.tolist()[0]
         # print("obs", obs)
         proprioception = obs[:130]
@@ -79,6 +86,8 @@ class CustomNN(BaseFeaturesExtractor):
         # print("len extrincics", len(extrinsics))
         proprioception = torch.Tensor(proprioception)
         extrinsics = torch.Tensor(extrinsics)
+        extrinsics = extrinsics.to(device)
+        proprioception = proprioception.to(device)
 
         extrinsics = self.l1(extrinsics)
         extrinsics = self.a1(extrinsics)
@@ -86,6 +95,7 @@ class CustomNN(BaseFeaturesExtractor):
         extrinsics = self.a2(extrinsics)
 
         state = torch.cat((proprioception, extrinsics), dim=0)
+        state.to(device)
         state = self.l3(state)
         state = self.a3(state)
         state = self.l4(state)
@@ -98,7 +108,7 @@ class CustomNN(BaseFeaturesExtractor):
 
 
 if __name__ == '__main__':
-    num_env = 1
+    num_env = 10
     env_fns = [make_env for _ in range(num_env)]
     # envs = [VecNormalize(env, norm_reward=True, norm_obs=True) for env in env_fns]
     env = SubprocVecEnv(env_fns)
@@ -112,13 +122,15 @@ if __name__ == '__main__':
     policy_kwargs = dict(
     features_extractor_class=CustomNN,
     features_extractor_kwargs=dict(features_dim=16),
+    log_std_init=-1.6094
 )
+    # policy_kwargs = dict(net_arch=[201, 256, 128, 64, 32, 16], log_std_init=-1.6094)
 
     timesteps = 100000
     # model = PPO.load(model_dir, env=v_env)
-    model = PPO("MlpPolicy", v_env, verbose=1, learning_rate=0.0005, tensorboard_log=log_dir, policy_kwargs=policy_kwargs,
+    model = PPO("MlpPolicy", v_env, verbose=1, learning_rate=0.001, tensorboard_log=log_dir, policy_kwargs=policy_kwargs,
                 batch_size=100000 * num_env, gae_lambda=0.95, gamma=0.998, n_steps=25000 * num_env, clip_range=0.2,
-                clip_range_vf=0.2)
+                clip_range_vf=0.2, device=device)
 
     for i in range(1, 15000):
         # model.learn(total_timesteps=timesteps, tb_log_name='PPO_R1')
