@@ -51,6 +51,7 @@ def make_env():
     env = gym.make('MyCustomEnv-v0')
     return env
 
+
 class CustomNN(BaseFeaturesExtractor):
     """
     :param observation_space: (gym.Space)
@@ -58,57 +59,50 @@ class CustomNN(BaseFeaturesExtractor):
         This corresponds to the number of unit for the last layer.
     """
 
-    def __init__(self, observation_space: qp.observation_space, features_dim: int = 16):
+    def __init__(self, observation_space: qp.observation_space, features_dim: int = 35):
         super().__init__(observation_space, features_dim)
         # self.features_extractor.to(device)
-        self.l1 = nn.Linear(71, 72)
+        self.l1 = nn.Linear(67, 32)
         self.a1 = nn.ReLU()
-        self.l2 = nn.Linear(72, 64)
+        self.l2 = nn.Linear(62, 32)
         self.a2 = nn.ReLU()
-
-        self.l3 = nn.Linear(194, 256)
+        self.l3 = nn.Linear(68, 32)
         self.a3 = nn.ReLU()
-        self.l4 = nn.Linear(256, 128)
-        self.a4 = nn.ReLU()
-        self.l5 = nn.Linear(128, 64)
-        self.a5 = nn.ReLU()
-        self.l6 = nn.Linear(64, features_dim)
+        # self.a4 = nn.ReLU()
+        # self.l5 = nn.Linear(128, 64)
+        # self.a5 = nn.ReLU()
+        # self.l6 = nn.Linear(64, features_dim)
 
         if torch.cuda.is_available():
             self.cuda()
 
     def forward(self, observations: torch.Tensor) -> torch.Tensor:
         observations = observations.to(device)
-        obs = observations.tolist()[0]
         # print("obs", obs)
-        proprioception = obs[:130]
-        extrinsics = obs[130:]
+        history = observations[:, :36]
+        proprioception = observations[:, 36:66]
+        command = observations[:, 66:69]
+        extrinsics = observations[:, 69:]
         # print("len extrincics", len(extrinsics))
-        proprioception = torch.Tensor(proprioception)
-        extrinsics = torch.Tensor(extrinsics)
-        extrinsics = extrinsics.to(device)
-        proprioception = proprioception.to(device)
 
         extrinsics = self.l1(extrinsics)
         extrinsics = self.a1(extrinsics)
-        extrinsics = self.l2(extrinsics)
-        extrinsics = self.a2(extrinsics)
 
-        state = torch.cat((proprioception, extrinsics), dim=0)
-        state.to(device)
+        state = torch.cat((extrinsics, proprioception), dim=1)
+        state = self.l2(state)
+        state = self.a2(state)
+
+        state = torch.cat((state, history), dim=1)
         state = self.l3(state)
         state = self.a3(state)
-        state = self.l4(state)
-        state = self.a4(state)
-        state = self.l5(state)
-        state = self.a5(state)
-        state = self.l6(state)
+
+        state = torch.cat((state, command), dim=1)
 
         return state
 
 
 if __name__ == '__main__':
-    num_env = 10
+    num_env = 1
     env_fns = [make_env for _ in range(num_env)]
     # envs = [VecNormalize(env, norm_reward=True, norm_obs=True) for env in env_fns]
     env = SubprocVecEnv(env_fns)
@@ -121,7 +115,7 @@ if __name__ == '__main__':
 
     policy_kwargs = dict(
     features_extractor_class=CustomNN,
-    features_extractor_kwargs=dict(features_dim=16),
+    features_extractor_kwargs=dict(features_dim=35),
     log_std_init=-1.6094
 )
     # policy_kwargs = dict(net_arch=[201, 256, 128, 64, 32, 16], log_std_init=-1.6094)
