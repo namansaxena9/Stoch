@@ -1,0 +1,20 @@
+attrs==19.3.0
+absl-py
+quadprog
+inputs
+qpsolvers
+gym
+stable-baselines==2.10.0
+numpy>=1.17.3
+crocoddyl
+pybullet>=3.0.6
+typing==3.7.4.1
+tqdm
+
+## Conda
+# mpi4py==3.0.3
+# numba
+
+## Ignore
+# tensorflow==1.15.4
+# tensorboard==1.15.0

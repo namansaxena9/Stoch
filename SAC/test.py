@@ -43,7 +43,7 @@ parser.add_argument('--target_update_interval', type=int, default=1, metavar='N'
                     help='Value target update per no. of updates per step (default: 1)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 10000000)')
-parser.add_argument('--cuda', action="store_true",
+parser.add_argument('--cuda', action="store_true", default = True,
                     help='run on CUDA (default: False)')
 parser.add_argument('--model_save_frequency', type=int, default=1000, metavar='N',
                     help='model save frequency (default: 10000)')
@@ -61,7 +61,7 @@ np.random.seed(args.seed)
 
 # Agent
 agent = SAC(env.observation_space.shape[0], env.action_space, args)
-agent.load_checkpoint("./checkpoints/sac_checkpoint_Quadruped_exp4")
+agent.load_checkpoint("./checkpoints/sac_checkpoint_Quadruped_exp6")
 
 avg_reward = 0.
 episodes = 10
@@ -74,7 +74,6 @@ for _  in range(episodes):
 
         next_state, reward, done, _ = env.step(action)
         episode_reward += reward
-        done = False
 
         state = next_state
     avg_reward += episode_reward

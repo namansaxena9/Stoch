@@ -1,0 +1,2 @@
+exp6: Correct env, reward initial focus on linear velocity
+exp7: Correct env, CMU inspired reward function

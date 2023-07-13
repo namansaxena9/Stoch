@@ -39,6 +39,9 @@ class QuadrupedRobotEnv(gym.Env):
         self.robot_id = p.loadURDF(URDFPATH, [0, 0, 0.58])
         self.NUM_LEGS = 4
         
+        self.time_interval = 0.01
+        self.two_pi = 2*math.pi
+
 
 
         # Definining terrain parameters
@@ -62,9 +65,11 @@ class QuadrupedRobotEnv(gym.Env):
 
         # Setting the position of the terrain to be at the center of the world
         p.resetBasePositionAndOrientation(self.terrain_body, [0, 0, 0], [0, 0, 0, 1])
+        p.resetBasePositionAndOrientation(self.robot_id, [0, 0, 0.69], [0, 0, 0, 1])
+
         p.setGravity(0, 0, -9.81)
         # p.setPhysicsEngineParameter(contactStiffness=100000.0)
-        p.setTimeStep(0.025, self.physics_client)
+        p.setTimeStep(self.time_interval, self.physics_client)
         p.changeDynamics(
             self.robot_id,
             -1,
@@ -129,7 +134,7 @@ class QuadrupedRobotEnv(gym.Env):
         self.leg3_tar_tminus1 = [0.0, 0.0, 0.0]
         self.leg3_tar_tminus2 = [0.0, 0.0, 0.0]
 
-        self.action_factor = 0.05
+        self.action_factor = 0.002
         self.frequency_factor = 0.5
 
         self.action_space = spaces.Box(low=-1, high=1, shape=(16,))
@@ -162,7 +167,12 @@ class QuadrupedRobotEnv(gym.Env):
         # print("len low", len(self.obs_lower_limits))
 
         self.observation_space = spaces.Box(low=self.obs_lower_limits, high=self.obs_upper_limits, shape=(201,), dtype=np.float32)
-        self.initial_action = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+
+        angle_1 = 0.007
+        angle_2 = 1.035
+        angle_3 = 1.6#1.794
+        self.initial_action = np.array([-angle_1, angle_2, -angle_3, angle_1, angle_2, -angle_3, -angle_1, angle_2, -angle_3, angle_1, angle_2, -angle_3])
+
         self.present_state = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         self.present_vels = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 
@@ -188,12 +198,13 @@ class QuadrupedRobotEnv(gym.Env):
         self.done = False
 
         foot_clearance = 0.01
-        height = 0.64
+        height = 0.45
         self.desired_height = height - foot_clearance
         # self.data = 0.0
 
     def step(self, action):
         #print("step")
+        #print(p.getBasePositionAndOrientation(self.robot_id))
         # print("action", action)
         action = list(action)
         freq_offsets = action[:4]
@@ -209,10 +220,10 @@ class QuadrupedRobotEnv(gym.Env):
         self.freq_leg2 = self.base_freq + freq_offsets[2]
         self.freq_leg3 = self.base_freq + freq_offsets[3]
 
-        self.phase_leg0 = (self.phase_offset0 + self.freq_leg0 * 0.025 * self.timesteps) % (2 * math.pi)
-        self.phase_leg1 = (self.phase_offset1 + self.freq_leg1 * 0.025 * self.timesteps) % (2 * math.pi)
-        self.phase_leg2 = (self.phase_offset2 + self.freq_leg2 * 0.025 * self.timesteps) % (2 * math.pi)
-        self.phase_leg3 = (self.phase_offset3 + self.freq_leg3 * 0.025 * self.timesteps) % (2 * math.pi)
+        self.phase_leg0 = (self.phase_offset0 + self.freq_leg0 * self.time_interval * self.two_pi * self.timesteps) % (2 * math.pi)
+        self.phase_leg1 = (self.phase_offset1 + self.freq_leg1 * self.time_interval * self.two_pi* self.timesteps) % (2 * math.pi)
+        self.phase_leg2 = (self.phase_offset2 + self.freq_leg2 * self.time_interval * self.two_pi* self.timesteps) % (2 * math.pi)
+        self.phase_leg3 = (self.phase_offset3 + self.freq_leg3 * self.time_interval * self.two_pi* self.timesteps) % (2 * math.pi)
 
         ftg_z0 = self.FTG(self.phase_leg0)
         ftg_z1 = self.FTG(self.phase_leg1)
@@ -275,7 +286,7 @@ class QuadrupedRobotEnv(gym.Env):
         for joint_index in self.leg_valid:
 
             p.setJointMotorControl2(self.robot_id, joint_index, controlMode=p.POSITION_CONTROL,
-                                    targetPosition=d[joint_index], positionGain=0.1)
+                                    targetPosition=d[joint_index], positionGain=1.0, force = 50)
 
         # Step the simulation forward by one time step
         p.stepSimulation()
@@ -291,11 +302,11 @@ class QuadrupedRobotEnv(gym.Env):
         self.tminus1_vels = self.present_vels
         self.present_vels = obs[21:33]
 
-        reward = self.reward_function()
+        reward,info = self.reward_function()
         done = self._is_done()
         #print("timesteps", self.timesteps)
 
-        return obs, reward, done, {}
+        return obs, reward, done, info
 
 
     def reset(self):
@@ -334,9 +345,11 @@ class QuadrupedRobotEnv(gym.Env):
 
         # Setting the position of the terrain to be at the center of the world
         p.resetBasePositionAndOrientation(self.terrain_body, [0, 0, 0], [0, 0, 0, 1])
+        p.resetBasePositionAndOrientation(self.robot_id, [0, 0, 0.65], [0, 0, 0, 1])
+
         p.setGravity(0, 0, -9.81)
         # p.setPhysicsEngineParameter(contactStiffness=100000.0)
-        p.setTimeStep(0.025, self.physics_client)
+        p.setTimeStep(self.time_interval, self.physics_client)
         p.changeDynamics(
             self.robot_id,
             -1,
@@ -894,11 +907,12 @@ class QuadrupedRobotEnv(gym.Env):
     def reward_function(self):
         global lin_vel_reward, ang_vel_reward
         lin_vel_coeff = 1
-        ang_vel_coeff = 1
+        ang_vel_coeff = 0.001
         base_pen_coeff = 0.0001
         smooth_coeff = 0.00001
         ener_coeff = 0.000001
 
+        ang_vel_lim= 1
         base_pen_limit = 0.4
         smooth_lim = 0.025
         ener_lim = 0.0004
@@ -907,6 +921,7 @@ class QuadrupedRobotEnv(gym.Env):
             base_pen_coeff = min(base_pen_coeff * 2, base_pen_limit)
             smooth_coeff = min(smooth_coeff * 2, smooth_lim)
             ener_coeff = min(ener_coeff * 2, ener_lim)
+            ang_vel_coeff = min(ang_vel_coeff * 2, ang_vel_lim)
 
         torques = []
         for i in self.leg_valid:
@@ -953,7 +968,16 @@ class QuadrupedRobotEnv(gym.Env):
         smooth_reward = (-1) * math.sqrt(pow(smooth_reward_list[0], 2) + pow(smooth_reward_list[1], 2) + pow(smooth_reward_list[2], 2))
 
         reward = energy_reward * ener_coeff + lin_vel_coeff * lin_vel_reward + ang_vel_reward * ang_vel_coeff + base_reward * base_pen_coeff + smooth_reward * smooth_coeff
-        return reward
+        
+        info = {}
+        
+        info['energy_reward'] = energy_reward * ener_coeff
+        info['vel_reward'] = lin_vel_coeff * lin_vel_reward
+        info['ang_vel_reward'] = ang_vel_reward * ang_vel_coeff
+        info['base_reward'] = base_reward * base_pen_coeff  
+        info['smooth_reward'] = smooth_reward * smooth_coeff
+        
+        return reward,info
 
     def _is_done(self):
         base_pose, body_orien = p.getBasePositionAndOrientation(self.robot_id)

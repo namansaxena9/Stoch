@@ -112,7 +112,7 @@ for i_episode in itertools.count(1):
         state = next_state
         
         if(total_numsteps % args.model_save_frequency == 0):
-            agent.save_checkpoint("Quadruped",suffix = "exp4")
+            agent.save_checkpoint("Quadruped",suffix = "exp6")
 
     if total_numsteps > args.num_steps:
         break
@@ -122,24 +122,37 @@ for i_episode in itertools.count(1):
 
     if i_episode % 10 == 0 and args.eval is True:
         avg_reward = 0.
+        avg_auxi_reward = np.zeros(5)
         episodes = 10
         for _  in range(episodes):
             state = env.reset()
             episode_reward = 0
+            auxi_reward = np.zeros(5)
             done = False
             while not done:
                 action = agent.select_action(state, evaluate=True)
 
-                next_state, reward, done, _ = env.step(action)
+                next_state, reward, done, info = env.step(action)
                 episode_reward += reward
-
+                auxi_reward[0] += info['energy_reward']
+                auxi_reward[1] += info['vel_reward']
+                auxi_reward[2] += info['ang_vel_reward']
+                auxi_reward[3] += info['base_reward']
+                auxi_reward[4] += info['smooth_reward']
 
                 state = next_state
             avg_reward += episode_reward
+            avg_auxi_reward+=auxi_reward           
         avg_reward /= episodes
+        avg_auxi_reward/=episodes
 
 
         writer.add_scalar('avg_reward/test', avg_reward, i_episode)
+        writer.add_scalar('enery_reward/test', avg_auxi_reward[0], i_episode)
+        writer.add_scalar('vel_reward/test', avg_auxi_reward[1], i_episode)
+        writer.add_scalar('ang_vel_reward/test', avg_auxi_reward[2], i_episode)
+        writer.add_scalar('base_reward/test', avg_auxi_reward[3], i_episode)
+        writer.add_scalar('smooth_reward/test', avg_auxi_reward[4], i_episode)
 
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
