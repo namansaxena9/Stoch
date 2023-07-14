@@ -27,12 +27,16 @@ num_env = 1
 class QuadrupedRobotEnv(gym.Env):
     def __init__(self, max_episode_steps=2000):
 
-        self.physics_client = p.connect(p.DIRECT)
-        # self.physics_client = p.connect(p.GUI)
+        # self.physics_client = p.connect(p.DIRECT)
+        self.physics_client = p.connect(p.GUI)
 
         self.max_episode_steps = max_episode_steps
 
         self._motor_offset = np.array([0] * 12)
+        self.friction = 0.7
+        self.fx = 0
+        self.fy = 0
+        self.fz = 0
         # self._motor_offset = np.array([0, -0.8, -1.5, 0, 0.8, -1.5, 0, -0.8, -1.5, 0, 0.8, -1.5])
 
         self._motor_direction = np.array([1, 1, 1,
@@ -74,20 +78,29 @@ class QuadrupedRobotEnv(gym.Env):
         p.setGravity(0, 0, -9.81)
         # p.setPhysicsEngineParameter(contactStiffness=100000.0)
         p.setTimeStep(self.time_interval, self.physics_client)
+        ids = [3, 7, 11, 15]
+        for id in ids:
+            p.changeDynamics(
+                self.robot_id,
+                id,
+                lateralFriction=self.friction,
+                spinningFriction=self.friction,
+                rollingFriction=0.014,
+                physicsClientId=0,
+                restitution=0.35,
+                contactStiffness=6500,
+                contactDamping=0.05
+            )
         p.changeDynamics(
-            self.robot_id,
+            self.terrain_body,
             -1,
-            lateralFriction=0.6,
+            lateralFriction=self.friction,
+            spinningFriction=self.friction,
+            rollingFriction=0.014,
             physicsClientId=0,
             restitution=0.35,
             contactStiffness=6500,
             contactDamping=0.05
-        )
-        p.changeDynamics(
-            self.terrain_body,
-            -1,
-            lateralFriction=0.8,
-            physicsClientId=0,
         )
 
         self.state_id = p.saveState()
@@ -200,10 +213,10 @@ class QuadrupedRobotEnv(gym.Env):
         # self.data = 0.0
 
     def step(self, action_orig):
-        print("inside step")
-        print("time-steps=", self.timesteps)
-        print("counter=", self.counter)
-        print("base vels=", p.getBaseVelocity(self.robot_id)[0])
+        # print("inside step")
+        # print("time-steps=", self.timesteps)
+        # print("counter=", self.counter)
+        # print("base vels=", p.getBaseVelocity(self.robot_id)[0])
 
         action = np.multiply(action_orig, self.action_factors)
         self.action_tminus1 = self.action
@@ -255,7 +268,9 @@ class QuadrupedRobotEnv(gym.Env):
         cameraTargetPosition = [0, 0, 0]  # Example target position [x, y, z]
         p.resetDebugVisualizerCamera(cameraDistance=3, cameraYaw=0, cameraPitch=-30,
                                      cameraTargetPosition=cameraTargetPosition)
-
+        self.fx = 0
+        self.fy = 0
+        self.fz = 0
         # self.timesteps = 0
         self.done = False
         p.setAdditionalSearchPath(SEARCHPATH)  # Path to the meshes folder
@@ -322,20 +337,29 @@ class QuadrupedRobotEnv(gym.Env):
         p.setGravity(0, 0, -9.81)
         # p.setPhysicsEngineParameter(contactStiffness=100000.0)
         p.setTimeStep(self.time_interval, self.physics_client)
+        ids = [3, 7, 11, 15]
+        for id in ids:
+            p.changeDynamics(
+                self.robot_id,
+                id,
+                lateralFriction=self.friction,
+                spinningFriction=self.friction,
+                rollingFriction=0.014,
+                physicsClientId=0,
+                restitution=0.35,
+                contactStiffness=6500,
+                contactDamping=0.05
+            )
         p.changeDynamics(
-            self.robot_id,
+            self.terrain_body,
             -1,
-            lateralFriction=0.6,
+            lateralFriction=self.friction,
+            spinningFriction=self.friction,
+            rollingFriction=0.014,
             physicsClientId=0,
             restitution=0.35,
             contactStiffness=6500,
             contactDamping=0.05
-        )
-        p.changeDynamics(
-            self.terrain_body,
-            -1,
-            lateralFriction=0.6,
-            physicsClientId=0,
         )
 
         self.present_state = self.initial_action
@@ -387,9 +411,9 @@ class QuadrupedRobotEnv(gym.Env):
         thigh_contact_states = self.get_thigh_contact_states()  # discrete
         shank_contact_states = self.get_shank_contact()  # discrete
         ground_fric = self.get_ground_friction_coeff()
-        print("ground_fric=", ground_fric[0])
+        # print("ground_fric=", ground_fric[0])
         ext_force = self.get_ext_force()
-        print("ext force=", ext_force)
+        # print("ext force=", ext_force)
 
         observation = np.array(
             action_history + pose_history + vels_history + joint_pose + joint_vels + base_angular_vel + base_linear_vel + lin_dir + twist + foot_contact_states + \
@@ -671,99 +695,149 @@ class QuadrupedRobotEnv(gym.Env):
         return binary_shank_contact
 
     def get_ground_friction_coeff(self):
-        fric_coeff = [0.6, 0.6, 0.6, 0.6]
         if self.counter < 6000000:
-            fric_coeff = [0.6, 0.6, 0.6, 0.6]
+            self.friction = 0.7
 
         elif 6000000 <= self.counter < 10000000:
             if self.counter % 1000000 == 0:
-                fric_coeff = [random.uniform(0.55, 0.65) for i in range(4)]
+                self.friction = random.uniform(0.65, 0.75)
             p.changeDynamics(self.robot_id,
                              -1,
-                             lateralFriction=fric_coeff[0],
+                             lateralFriction=self.friction,
+                             spinningFriction=self.friction
                              )
             p.changeDynamics(self.terrain_body,
                              -1,
-                             lateralFriction=fric_coeff[0],
+                             lateralFriction=self.friction,
+                             spinningFriction=self.friction
                              )
 
         elif 10000000 <= self.counter < 15000000:
             if self.counter % 1000000 == 0:
-                fric_coeff = [random.uniform(0.45, 0.7) for i in range(4)]
-            p.changeDynamics(self.robot_id,
-                             -1,
-                             lateralFriction=fric_coeff[0],
-                             )
-            p.changeDynamics(self.terrain_body,
-                             -1,
-                             lateralFriction=fric_coeff[0],
-                             )
-
+                self.friction = random.uniform(0.55, 0.75)
+                p.changeDynamics(self.robot_id,
+                                 -1,
+                                 lateralFriction=self.friction,
+                                 spinningFriction=self.friction
+                                 )
+                p.changeDynamics(self.terrain_body,
+                                 -1,
+                                 lateralFriction=self.friction,
+                                 spinningFriction=self.friction
+                                 )
         elif 15000000 <= self.counter < 20000000:
             if self.counter % 1000000 == 0:
-                fric_coeff = [random.uniform(0.35, 0.75) for i in range(4)]
-            p.changeDynamics(self.robot_id,
-                             -1,
-                             lateralFriction=fric_coeff[0],
-                             )
-            p.changeDynamics(self.terrain_body,
-                             -1,
-                             lateralFriction=fric_coeff[0],
-                             )
+                self.friction = random.uniform(0.45, 0.8)
+                p.changeDynamics(self.robot_id,
+                                 -1,
+                                 lateralFriction=self.friction,
+                                 spinningFriction=self.friction
+                                 )
+                p.changeDynamics(self.terrain_body,
+                                 -1,
+                                 lateralFriction=self.friction,
+                                 spinningFriction=self.friction
+                                 )
 
         else:
             if self.counter % 200000 == 0:
-                fric_coeff = [random.uniform(0.2, 0.8) for i in range(4)]
-            p.changeDynamics(self.robot_id,
-                             -1,
-                             lateralFriction=fric_coeff[0],
-                             )
-            p.changeDynamics(self.terrain_body,
-                             -1,
-                             lateralFriction=fric_coeff[0],
-                             )
+                self.friction = random.uniform(0.25, 0.8)
+                p.changeDynamics(self.robot_id,
+                                 -1,
+                                 lateralFriction=self.friction,
+                                 spinningFriction=self.friction
+                                 )
+                p.changeDynamics(self.terrain_body,
+                                 -1,
+                                 lateralFriction=self.friction,
+                                 spinningFriction=self.friction
+                                 )
+
+        fric_coeff = [self.friction for i in range(4)]
 
         return fric_coeff
 
     def get_ext_force(self):
-        force = [0.0, 0.0, 0.0]
         if self.counter < 4000000:
-            force = [0.0, 0.0, 0.0]
+            self.fx = 0
+            self.fy = 0
+            self.fz = 0
 
         elif 4000000 <= self.counter < 6000000:
             if self.counter % 10000 == 0:
-                force = [random.uniform(-10, 10) for i in range(3)]  # Specify the force vector [X, Y, Z]
+                self.fx = random.uniform(-10, 10)
+                self.fy = random.uniform(-10, 10)
+                self.fz = random.uniform(-10, 10)
+                force = [self.fx, self.fy, self.fz]
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+
+            else:
+                self.fx = 0
+                self.fy = 0
+                self.fz = 0
 
         elif 6000000 <= self.counter < 10000000:
             if self.counter % 10000 == 0:
-                force = [random.uniform(-20, 20) for i in range(3)]  # Specify the force vector [X, Y, Z]
+                self.fx = random.uniform(-20, 20)
+                self.fy = random.uniform(-20, 20)
+                self.fz = random.uniform(-20, 20)
+                force = [self.fx, self.fy, self.fz]
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+            else:
+                self.fx = 0
+                self.fy = 0
+                self.fz = 0
 
         elif 10000000 <= self.counter < 15000000:
             if self.counter % 1000 == 0:
-                force = [random.uniform(-40, 40) for i in range(3)]  # Specify the force vector [X, Y, Z]
+                self.fx = random.uniform(-40, 40)
+                self.fy = random.uniform(-40, 40)
+                self.fz = random.uniform(-40, 40)
+                force = [self.fx, self.fy, self.fz]
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+
+            else:
+                self.fx = 0
+                self.fy = 0
+                self.fz = 0
 
         elif 15000000 <= self.counter < 20000000:
             if self.counter % 1000 == 0:
-                force = [random.uniform(-60, 60) for i in range(3)]  # Specify the force vector [X, Y, Z]
+                self.fx = random.uniform(-60, 60)
+                self.fy = random.uniform(-60, 60)
+                self.fz = random.uniform(-60, 60)
+                force = [self.fx, self.fy, self.fz]
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
 
+            else:
+                self.fx = 0
+                self.fy = 0
+                self.fz = 0
+
         else:
             if self.counter % 100 == 0:
-                force = [random.uniform(-80, 80) for i in range(3)]  # Specify the force vector [X, Y, Z]
+                self.fx = random.uniform(-80, 80)
+                self.fy = random.uniform(-80, 80)
+                self.fz = random.uniform(-80, 80)
+                force = [self.fx, self.fy, self.fz]
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+
+            else:
+                self.fx = 0
+                self.fy = 0
+                self.fz = 0
+
+        force = [self.fx, self.fy, self.fz]
 
         return force
 
@@ -777,9 +851,9 @@ class QuadrupedRobotEnv(gym.Env):
         survival_bonus = 0.01
 
         # smooth_lim = 0.025
-        ener_lim = 0.003
+        ener_lim = 0.002
         z_vel_lim = 0.5
-        action_rate_lim = 0.08
+        action_rate_lim = 0.05
         lateral_lim = 4
         vx, vy, vz = p.getBaseVelocity(self.robot_id)[0]
         wz = self.get_base_angular_vels()[-1]
@@ -830,8 +904,8 @@ class QuadrupedRobotEnv(gym.Env):
         reward = energy_reward * ener_coeff + forward_vel_reward * lin_vel_coeff + lateral_reward * lateral_coeff + \
                  z_vel_reward * z_vel_coeff + action_rate_reward * action_rate_coeff + survival_bonus
 
-        print("reward= ", reward)
-        print("Energy Reward = ", energy_reward * ener_lim)
+        # print("reward= ", reward)
+        # print("Energy Reward = ", energy_reward * ener_lim)
 
         info = {}
 
