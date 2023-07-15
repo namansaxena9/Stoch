@@ -219,7 +219,7 @@ class QuadrupedRobotEnv(gym.Env):
         self.ener_coeff = 0.00001
         self.z_vel_coeff = 0.001
         self.action_rate_coeff = 0.0001
-        self.survival_bonus = 0.01
+        self.survival_bonus = 0.1
 
 
     def step(self, action_orig):

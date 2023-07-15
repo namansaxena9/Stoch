@@ -217,7 +217,7 @@ class QuadrupedRobotEnv(gym.Env):
         self.ener_coeff = 0.00001
         self.z_vel_coeff = 0.001
         self.action_rate_coeff = 0.0001
-        self.survival_bonus = 0.01
+        self.survival_bonus = 0.1
 
 
 
@@ -870,10 +870,10 @@ class QuadrupedRobotEnv(gym.Env):
     def calculate_reward(self):
 
         # smooth_lim = 0.025
-        ener_lim = 0.002
+        ener_lim = 0.001
         z_vel_lim = 0.5
         action_rate_lim = 0.05
-        lateral_lim = 4
+        lateral_lim = 2
         vx, vy, vz = p.getBaseVelocity(self.robot_id)[0]
         wz = self.get_base_angular_vels()[-1]
 
