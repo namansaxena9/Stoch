@@ -287,7 +287,7 @@ class QuadrupedRobotEnv(gym.Env):
         self.terrain_size = 256
         self.terrain_scale = 1
 
-        if self.counter < 45000000:
+        if self.counter < 55000000:
             self.heights = np.random.uniform(0, 0, size=(self.terrain_size, self.terrain_size))
 
             # Creating a PyBullet heightfield shape from the height values
@@ -461,8 +461,8 @@ class QuadrupedRobotEnv(gym.Env):
 
     def calculate_desired_direction_turning_direction(self, ):
         horizontal_twist_dirs = []
-        if self.counter >= 30000000 and self.counter != 0:
-            if self.counter < 35000000:
+        if self.counter >= 35000000 and self.counter != 0:
+            if self.counter < 40000000:
                 if self.counter % 1000000 == 0:
                     self.twist_dir = random.choice([-1, 0, 1])
                     if self.twist_dir == 0:
@@ -471,7 +471,7 @@ class QuadrupedRobotEnv(gym.Env):
                     else:
                         self.angle = 0
 
-            elif 35000000 <= self.counter < 40000000:
+            elif 40000000 <= self.counter < 45000000:
                 if self.counter % 100000 == 0:
                     self.twist_dir = random.choice([-1, 0, 1])
                     if self.twist_dir == 0:
@@ -482,7 +482,7 @@ class QuadrupedRobotEnv(gym.Env):
 
                     self.angle = random.uniform(0, 3.14 / 4)
 
-            elif 40000000 <= self.counter <= 45000000:
+            elif 45000000 <= self.counter <= 50000000:
                 if self.counter % 10000 == 0:
                     self.twist_dir = random.choice([-1, 0, 1])
                     if self.twist_dir == 0:
@@ -493,7 +493,7 @@ class QuadrupedRobotEnv(gym.Env):
 
                     self.angle = random.uniform(0, 3.14 / 4)
 
-            elif 45000000 <= self.counter <= 50000000:
+            elif 50000000 <= self.counter <= 55000000:
                 if self.counter % 1000 == 0:
                     self.twist_dir = random.choice([-1, 0, 1])
                     if self.twist_dir == 0:
@@ -704,10 +704,10 @@ class QuadrupedRobotEnv(gym.Env):
         return binary_shank_contact
 
     def get_ground_friction_coeff(self):
-        if self.counter < 6000000:
+        if self.counter < 10000000:
             self.friction = 0.7
 
-        elif 6000000 <= self.counter < 10000000:
+        elif 10000000 <= self.counter < 18000000:
             if self.counter % 1000000 == 0:
                 self.friction = random.uniform(0.65, 0.75)
             p.changeDynamics(self.robot_id,
@@ -721,7 +721,7 @@ class QuadrupedRobotEnv(gym.Env):
                              spinningFriction=self.friction
                              )
 
-        elif 10000000 <= self.counter < 15000000:
+        elif 18000000 <= self.counter < 24000000:
             if self.counter % 1000000 == 0:
                 self.friction = random.uniform(0.55, 0.75)
                 p.changeDynamics(self.robot_id,
@@ -734,7 +734,7 @@ class QuadrupedRobotEnv(gym.Env):
                                  lateralFriction=self.friction,
                                  spinningFriction=self.friction
                                  )
-        elif 15000000 <= self.counter < 20000000:
+        elif 24000000 <= self.counter < 32000000:
             if self.counter % 1000000 == 0:
                 self.friction = random.uniform(0.45, 0.8)
                 p.changeDynamics(self.robot_id,
@@ -749,7 +749,7 @@ class QuadrupedRobotEnv(gym.Env):
                                  )
 
         else:
-            if self.counter % 200000 == 0:
+            if self.counter % 1000000 == 0:
                 self.friction = random.uniform(0.25, 0.8)
                 p.changeDynamics(self.robot_id,
                                  -1,
@@ -767,12 +767,12 @@ class QuadrupedRobotEnv(gym.Env):
         return fric_coeff
 
     def get_ext_force(self):
-        if self.counter < int(3e6):
+        if self.counter < int(8e6):
             self.fx = 0
             self.fy = 0
             self.fz = 0
 
-        elif int(3e6) <= self.counter < int(6e6):
+        elif int(8e6) <= self.counter < int(15e6):
             if self.counter % 100 == 0:
                 self.fx = random.uniform(-5, 5)
                 self.fy = random.uniform(-5, 5)
@@ -787,7 +787,7 @@ class QuadrupedRobotEnv(gym.Env):
                 self.fy = 0
                 self.fz = 0
 
-        elif int(6e6) <= self.counter < int(10e6):
+        elif int(15e6) <= self.counter < int(20e6):
             if self.counter % 100 == 0:
                 self.fx = random.uniform(-10, 10)
                 self.fy = random.uniform(-10, 10)
@@ -801,7 +801,7 @@ class QuadrupedRobotEnv(gym.Env):
                 self.fy = 0
                 self.fz = 0
 
-        elif int(10e6) <= self.counter < int(15e6):
+        elif int(20e6) <= self.counter < int(26e6):
             if self.counter % 100 == 0:
                 self.fx = random.uniform(-20, 20)
                 self.fy = random.uniform(-20, 20)
@@ -816,7 +816,7 @@ class QuadrupedRobotEnv(gym.Env):
                 self.fy = 0
                 self.fz = 0
 
-        elif int(15e6) <= self.counter < int(20e6):
+        elif int(26e6) <= self.counter < int(32e6):
             if self.counter % 100 == 0:
                 self.fx = random.uniform(-40, 40)
                 self.fy = random.uniform(-40, 40)
@@ -831,7 +831,7 @@ class QuadrupedRobotEnv(gym.Env):
                 self.fy = 0
                 self.fz = 0
 
-        elif int(20e6) <= self.counter < int(25e6):
+        elif int(32e6) <= self.counter < int(40e6):
             if self.counter % 100 == 0:
                 self.fx = random.uniform(-60, 60)
                 self.fy = random.uniform(-60, 60)
@@ -876,7 +876,7 @@ class QuadrupedRobotEnv(gym.Env):
         vx, vy, vz = p.getBaseVelocity(self.robot_id)[0]
         wz = self.get_base_angular_vels()[-1]
 
-        if self.counter % 800000 * num_env == 0 and self.counter != 0:
+        if self.counter % 2000000 * num_env == 0 and self.counter != 0:
             # smooth_coeff = min(smooth_coeff * 2, smooth_lim)
             self.ener_coeff = min(self.ener_coeff * 2, ener_lim)
             self.z_vel_coeff = min(self.z_vel_coeff * 2, z_vel_lim)
@@ -897,7 +897,8 @@ class QuadrupedRobotEnv(gym.Env):
         self.vy = self.desired_speed * math.sin(self.angle)
         # forward_vel_reward = self.vx - abs(vx - self.vx_target) - abs(self.desired_twisting_speed * self.twist_dir - wz)
         forward_vel_reward = min(self.vx, vx)
-        lateral_reward = (pow(self.vy - vy, 2) + pow(self.desired_twisting_speed * self.twist_dir - wz, 2)) * (-1)
+        forward_vel_reward = self.vx - abs(self.vx - vx) - abs(self.desired_twisting_speed * self.twist_dir - wz)
+        lateral_reward = (pow(self.vy - vy, 2)) * (-1)
 
         # smooth_reward_list = np.array(self.leg0_tar_t) - 2 * np.array(self.leg0_tar_tminus1) + np.array(
         #     self.leg0_tar_tminus2) + np.array(self.leg1_tar_t) - 2 * np.array(self.leg1_tar_tminus1) + np.array(
