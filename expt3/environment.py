@@ -27,8 +27,8 @@ num_env = 1
 class QuadrupedRobotEnv(gym.Env):
     def __init__(self, max_episode_steps=2000):
 
-        # self.physics_client = p.connect(p.DIRECT)
-        self.physics_client = p.connect(p.GUI)
+        self.physics_client = p.connect(p.DIRECT)
+        #self.physics_client = p.connect(p.GUI)
 
         self.max_episode_steps = max_episode_steps
 
@@ -758,13 +758,28 @@ class QuadrupedRobotEnv(gym.Env):
         return fric_coeff
 
     def get_ext_force(self):
-        if self.counter < 4000000:
+        if self.counter < int(3e6):
             self.fx = 0
             self.fy = 0
             self.fz = 0
 
-        elif 4000000 <= self.counter < 6000000:
-            if self.counter % 10000 == 0:
+        elif int(3e6) <= self.counter < int(6e6):
+            if self.counter % 100 == 0:
+                self.fx = random.uniform(-5, 5)
+                self.fy = random.uniform(-5, 5)
+                self.fz = random.uniform(-5, 5)
+                force = [self.fx, self.fy, self.fz]
+                position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
+                link_index = -1  # Specify the link index (-1 for base/root link)
+                p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+
+            else:
+                self.fx = 0
+                self.fy = 0
+                self.fz = 0
+
+        elif int(6e6) <= self.counter < int(10e6):
+            if self.counter % 100 == 0:
                 self.fx = random.uniform(-10, 10)
                 self.fy = random.uniform(-10, 10)
                 self.fz = random.uniform(-10, 10)
@@ -772,14 +787,13 @@ class QuadrupedRobotEnv(gym.Env):
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
-
             else:
                 self.fx = 0
                 self.fy = 0
                 self.fz = 0
 
-        elif 6000000 <= self.counter < 10000000:
-            if self.counter % 10000 == 0:
+        elif int(10e6) <= self.counter < int(15e6):
+            if self.counter % 100 == 0:
                 self.fx = random.uniform(-20, 20)
                 self.fy = random.uniform(-20, 20)
                 self.fz = random.uniform(-20, 20)
@@ -787,13 +801,14 @@ class QuadrupedRobotEnv(gym.Env):
                 position = [0, 0, 0]  # Specify the position where the force is applied [X, Y, Z]
                 link_index = -1  # Specify the link index (-1 for base/root link)
                 p.applyExternalForce(self.robot_id, link_index, force, position, flags=p.WORLD_FRAME)
+
             else:
                 self.fx = 0
                 self.fy = 0
                 self.fz = 0
 
-        elif 10000000 <= self.counter < 15000000:
-            if self.counter % 1000 == 0:
+        elif int(15e6) <= self.counter < int(20e6):
+            if self.counter % 100 == 0:
                 self.fx = random.uniform(-40, 40)
                 self.fy = random.uniform(-40, 40)
                 self.fz = random.uniform(-40, 40)
@@ -807,8 +822,8 @@ class QuadrupedRobotEnv(gym.Env):
                 self.fy = 0
                 self.fz = 0
 
-        elif 15000000 <= self.counter < 20000000:
-            if self.counter % 1000 == 0:
+        elif int(20e6) <= self.counter < int(25e6):
+            if self.counter % 100 == 0:
                 self.fx = random.uniform(-60, 60)
                 self.fy = random.uniform(-60, 60)
                 self.fz = random.uniform(-60, 60)
@@ -821,6 +836,7 @@ class QuadrupedRobotEnv(gym.Env):
                 self.fx = 0
                 self.fy = 0
                 self.fz = 0
+
 
         else:
             if self.counter % 100 == 0:
