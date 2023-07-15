@@ -18,7 +18,7 @@ import pybullet as p
 import numpy as np
 import torch
 
-BASEDIR = "./"
+BASEDIR = "../"
 URDFPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_description", "urdf", "stoch3.urdf")
 # print(URDFPATH)
 SEARCHPATH = os.path.join(BASEDIR, "convex_mpc", "mpc_controller", "stoch3_description", "meshes")
@@ -213,6 +213,14 @@ class QuadrupedRobotEnv(gym.Env):
         # self.epi_count = 0
         self.done = False
         # self.data = 0.0
+        self.lin_vel_coeff = 7
+        self.lateral_coeff = 0.01
+        # smooth_coeff = 0.00001
+        self.ener_coeff = 0.00001
+        self.z_vel_coeff = 0.001
+        self.action_rate_coeff = 0.0001
+        self.survival_bonus = 0.01
+
 
     def step(self, action_orig):
         # print("inside step")
@@ -860,28 +868,21 @@ class QuadrupedRobotEnv(gym.Env):
         return force
 
     def calculate_reward(self):
-        lin_vel_coeff = 7
-        lateral_coeff = 0.01
-        # smooth_coeff = 0.00001
-        ener_coeff = 0.00001
-        z_vel_coeff = 0.001
-        action_rate_coeff = 0.00001
-        survival_bonus = 0.01
 
         # smooth_lim = 0.025
-        ener_lim = 0.004
+        ener_lim = 0.002
         z_vel_lim = 0.5
-        action_rate_lim = 0.1
-        lateral_lim = 5
+        action_rate_lim = 0.05
+        lateral_lim = 4
         vx, vy, vz = p.getBaseVelocity(self.robot_id)[0]
         wz = self.get_base_angular_vels()[-1]
 
         if self.counter % 800000 * num_env == 0 and self.counter != 0:
             # smooth_coeff = min(smooth_coeff * 2, smooth_lim)
-            ener_coeff = min(ener_coeff * 2, ener_lim)
-            z_vel_coeff = min(z_vel_coeff * 2, z_vel_lim)
-            action_rate_coeff = min(action_rate_coeff * 2, action_rate_lim)
-            lateral_coeff = min(lateral_coeff * 2, lateral_lim)
+            self.ener_coeff = min(self.ener_coeff * 2, ener_lim)
+            self.z_vel_coeff = min(self.z_vel_coeff * 2, z_vel_lim)
+            self.action_rate_coeff = min(self.action_rate_coeff * 2, action_rate_lim)
+            self.lateral_coeff = min(self.lateral_coeff * 2, lateral_lim)
 
         torques = []
         for i in self.leg_valid:
@@ -919,23 +920,24 @@ class QuadrupedRobotEnv(gym.Env):
         # print("z vel", z_vel_reward * z_vel_lim)
         # print("energy", energy_reward * ener_lim)
 
-        reward = energy_reward * ener_coeff + forward_vel_reward * lin_vel_coeff + lateral_reward * lateral_coeff + \
-                 z_vel_reward * z_vel_coeff + action_rate_reward * action_rate_coeff + survival_bonus
+        reward = energy_reward * self.ener_coeff + forward_vel_reward * self.lin_vel_coeff + lateral_reward * self.lateral_coeff + \
+                 z_vel_reward * self.z_vel_coeff + action_rate_reward * self.action_rate_coeff + self.survival_bonus
 
         # print("reward= ", reward)
         # print("Energy Reward = ", energy_reward * ener_lim)
 
         info = {}
 
-        info['energy_reward'] = energy_reward * ener_coeff
-        info['vel_reward'] = lin_vel_coeff * forward_vel_reward
-        info['lateral_vel_reward'] = lateral_reward * lateral_coeff
-        info['z-vel_reward'] = z_vel_reward * z_vel_coeff
+        info['energy_reward'] = energy_reward * self.ener_coeff
+        info['vel_reward'] = self.lin_vel_coeff * forward_vel_reward
+        info['lateral_vel_reward'] = lateral_reward * self.lateral_coeff
+        info['z-vel_reward'] = z_vel_reward * self.z_vel_coeff
         # info['smooth_reward'] = smooth_reward * smooth_coeff
-        info['action_rate_reward'] = action_rate_reward * action_rate_coeff
-        info['survival_reward'] = survival_bonus
+        info['action_rate_reward'] = action_rate_reward * self.action_rate_coeff
+        info['survival_reward'] = self.survival_bonus
 
         return reward, info
+
 
     def _is_done(self):
         base_pose, body_orien = p.getBasePositionAndOrientation(self.robot_id)
