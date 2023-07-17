@@ -113,7 +113,7 @@ class CustomNN(BaseFeaturesExtractor):
 
 
 if __name__ == '__main__':
-    num_env = 10
+    num_env = 1
     env_fns = [make_env for _ in range(num_env)]
     # envs = [VecNormalize(env, norm_reward=True, norm_obs=True) for env in env_fns]
     env = SubprocVecEnv(env_fns)

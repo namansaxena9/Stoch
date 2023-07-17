@@ -30,8 +30,8 @@ num_env = 1
 class QuadrupedRobotEnv(gym.Env):
     def __init__(self, max_episode_steps=2000):
 
-        # self.physics_client = p.connect(p.DIRECT)
-        self.physics_client = p.connect(p.GUI)
+        self.physics_client = p.connect(p.DIRECT)
+        #self.physics_client = p.connect(p.GUI)
 
         self.max_episode_steps = max_episode_steps
 
